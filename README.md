@@ -1,2 +1,2 @@
-# edf_server
-EDF server interface
+# edf_interface
+EDF interface
