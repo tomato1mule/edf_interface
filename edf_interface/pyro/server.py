@@ -28,7 +28,7 @@ class PyroServer():
         assert service._pyroExposed is True # use '@Pyro5.api.expose' decorator on the class.
 
         if server_name is None:
-            if isinstance(service, type):
+            if isinstance(service, object):
                 self.server_name = service.__name__
             else:
                 self.server_name = service.__class__.__name__
@@ -81,7 +81,7 @@ class PyroServer():
             self.server_daemon.close()
 
     @beartype
-    def run(self, nonblocking: bool):
+    def run(self, nonblocking: bool = False):
         if nonblocking:
             self.log.warning(f"Running {self.server_name} server in background...")
             self._loop_thread = threading.Thread(target=self._request_loop)
