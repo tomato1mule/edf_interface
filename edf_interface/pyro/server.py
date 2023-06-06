@@ -6,8 +6,8 @@ import time
 from beartype import beartype
 import Pyro5.nameserver, Pyro5.core, Pyro5.server, Pyro5.client, Pyro5.errors, Pyro5.api
 
-from edf_interface.pyro_nameserver import NameServer
-from edf_interface.pyro_utils import look_for_nameserver
+from edf_interface.pyro.nameserver import NameServer
+from edf_interface.pyro.utils import look_for_nameserver
 
 class PyroServer():
     nameserver: Optional[NameServer] = None
