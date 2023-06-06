@@ -17,9 +17,10 @@ class NameServer():
 
 
     @beartype
-    def __init__(self):
+    def __init__(self, init=True):
         self.log = logging.getLogger("NameServer")
-        self.init_nameserver()
+        if init:
+            self.init_nameserver()
         
 
     def init_nameserver(self, *args, **kwargs):
