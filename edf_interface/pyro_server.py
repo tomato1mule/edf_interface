@@ -20,17 +20,23 @@ class PyroServer():
 
     @beartype
     def __init__(self, 
-                 service: type,
+                 service,
                  server_name: Optional[str] = None, 
                  init_nameserver: Optional[bool] = None,
                  nameserver_timeout: Union[float, int, str] = 'default'):
-        
+
+        assert service._pyroExposed is True # use '@Pyro5.api.expose' decorator on the class.
+
         if server_name is None:
-            self.server_name = service.__name__
+            if isinstance(service, type):
+                self.server_name = service.__name__
+            else:
+                self.server_name = service.__class__.__name__
         else:
             self.server_name = server_name
         self.log = logging.getLogger(self.server_name)
-        self.service = Pyro5.api.expose(service)
+        #self.service = Pyro5.api.expose(service)
+        self.service = service
 
         ############ Initialize Nameserver Proxy #############
         if init_nameserver:
