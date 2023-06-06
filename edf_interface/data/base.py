@@ -224,12 +224,10 @@ class DataAbstractBase(metaclass=ABCMeta):
         return self.__repr__()
             
 
-            
+class Observation(DataAbstractBase):
+    def __init__(self):
+        super().__init__()
 
-
-
-class Observation(metaclass=ABCMeta):
-    pass
-
-class Action(metaclass=ABCMeta):
-    pass
+class Action(DataAbstractBase):
+    def __init__(self):
+        super().__init__()
