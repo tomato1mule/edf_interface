@@ -31,17 +31,10 @@ def _torch_tensor_to(__tensor: torch.Tensor,
 class DataAbstractBase(metaclass=ABCMeta):
     data_args_hint: Dict[str, type]
     metadata_args_hint: Dict[str, type]
-    # other_args_hint: Dict[str, type]
-    args_hint: Dict[str, Any]
 
     @property
     @abstractmethod
-    def data_args_hint(self) -> Dict[str, type]:
-        pass
-
-    @property
-    @abstractmethod
-    def metadata_args_hint(self) -> Dict[str, type]:
+    def device(self) -> torch.device:
         pass
 
     def __init__(self):
@@ -58,29 +51,31 @@ class DataAbstractBase(metaclass=ABCMeta):
             
         
 
-        self.args_hint = {}
+        args_hint = {}
         for key, val in inspect.signature(self.__init__).parameters.items():
             assert key==val.name, f"Using variable args or kwargs ({val.name}) is not allowed in __init__."
-            annotation = Any if val.annotation is inspect._empty else val.annotation
-            if annotation is Dict:
-                annotation = dict
-            elif annotation is List:
-                annotation = list
-            elif annotation is Tuple:
-                annotation = tuple
 
-            assert isinstance(annotation, type), f"Type hint ({key}: {str(annotation)}) must be an object type, not {type(annotation)}"
-            default_var = val.default
-            self.args_hint[key] = annotation
+            if key in self.data_args_hint.keys() or key in self.metadata_args_hint.keys():
+                annotation = Any if val.annotation is inspect._empty else val.annotation
+                if annotation is Dict:
+                    annotation = dict
+                elif annotation is List:
+                    annotation = list
+                elif annotation is Tuple:
+                    annotation = tuple
 
-        assert 'metadata' not in self.args_hint.keys(), f"Don't use 'metadata' as a parameter name! It is reserved."
+                assert isinstance(annotation, type), f"Type hint ({key}: {str(annotation)}) must be an object type, not {type(annotation)}"
+                default_var = val.default
+                args_hint[key] = annotation
+
+        assert 'metadata' not in args_hint.keys(), f"Don't use 'metadata' as a parameter name! It is reserved."
 
         for arg, hint in self.data_args_hint.items():
-            assert arg in self.args_hint.keys(), f"data_arg {arg} must be defined as a parameter of __init__()!"
-            assert self.args_hint[arg] == hint, f"self.data_args_hint[{arg}] = {self.data_args_hint[arg]} != {hint}"
+            assert arg in args_hint.keys(), f"data_arg {arg} must be defined as a parameter of __init__()!"
+            assert args_hint[arg] == hint, f"self.data_args_hint[{arg}] = {self.data_args_hint[arg]} != {hint}"
         for arg, hint in self.metadata_args_hint.items():
-            assert arg in self.args_hint, f"metadata_arg_hint {arg} must be defined as a parameter of __init__()!"
-            assert self.args_hint[arg] == hint, f"self.metadata_args_hint[{arg}] = {self.metadata_args_hint[arg]} != {hint}"
+            assert arg in args_hint, f"metadata_arg_hint {arg} must be defined as a parameter of __init__()!"
+            assert args_hint[arg] == hint, f"self.metadata_args_hint[{arg}] = {self.metadata_args_hint[arg]} != {hint}"
             
     @property
     def metadata(self) -> Dict[str, Any]:
@@ -177,7 +172,7 @@ class DataAbstractBase(metaclass=ABCMeta):
         if abbrv:
             repr = ""
         else:
-            repr = f"<{self.__class__.__name__}>\n"
+            repr = f"<{self.__class__.__name__}>  (device: {str(self.device)})\n"
 
         if not abbrv:
             repr += prefix + "Metadata: \n"

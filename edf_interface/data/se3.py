@@ -10,29 +10,26 @@ import torch
 from .transforms import quaternion_apply, quaternion_multiply, axis_angle_to_quaternion, quaternion_invert, normalize_quaternion
 from .base import DataAbstractBase, Action, Observation
 
+@beartype
 class SE3(Action, Observation):
-    @property
-    def data_args_hint(self) -> Dict[str, type]:
-        hint = {
-            'poses': torch.Tensor,
-        }
-        return hint
+    data_args_hint: Dict[str, type] = {
+        'poses': torch.Tensor,
+    }
+
+    metadata_args_hint: Dict[str, type] = {
+        'name': str,
+    }
+
+    poses: torch.Tensor
+    name: str
 
     @property
-    def metadata_args_hint(self) -> Dict[str, type]:
-        hint = {
-            'name': str
-        }
-        return hint
-
+    def device(self) -> torch.device:
+        return self.poses.device
 
     def __init__(self, poses: torch.Tensor, name: str = '', device: Optional[Union[str, torch.device]] = None, renormalize: bool = True):
+        super().__init__()
         self.name: str = name
-        if not isinstance(poses, torch.Tensor):
-            if device is None:
-                device = torch.device('cpu')
-            poses = torch.tensor(poses, device=device)
-
         assert poses.ndim <= 2 and poses.shape[-1] == 7
 
         if device is None:
@@ -44,7 +41,6 @@ class SE3(Action, Observation):
         if poses.ndim == 1:
             poses = poses.unsqueeze(-2)
 
-        self.device = device
         self.poses = poses
 
         if not torch.allclose(self.poses[...,:4].detach().norm(dim=-1,keepdim=True), torch.tensor([1.0], device=device), rtol=0, atol=0.03):
