@@ -32,18 +32,13 @@ class SE3(Action, Observation):
         self.name: str = name
         assert poses.ndim <= 2 and poses.shape[-1] == 7
 
-        if device is None:
-            device = poses.device
-        device = torch.device(device)
-        if device != poses.device:
+        if device is not None:
             poses = poses.to(device)
-        
         if poses.ndim == 1:
             poses = poses.unsqueeze(-2)
-
         self.poses = poses
 
-        if not torch.allclose(self.poses[...,:4].detach().norm(dim=-1,keepdim=True), torch.tensor([1.0], device=device), rtol=0, atol=0.03):
+        if not torch.allclose(self.poses[...,:4].detach().norm(dim=-1,keepdim=True), torch.tensor([1.0], device=self.device), rtol=0, atol=0.03):
             warnings.warn("SE3.__init__(): Input quaternion is not normalized")
 
         if renormalize:
@@ -80,15 +75,6 @@ class SE3(Action, Observation):
 
     def __len__(self) -> int:
         return len(self.poses)
-
-    def get_data_dict(self) -> Dict[str, torch.Tensor]:
-        data_dict = {"poses": self.poses.detach().cpu()}
-        return data_dict
-
-    @staticmethod
-    def from_data_dict(data_dict: Dict, device: Union[str, torch.device] = 'cpu') -> SE3:
-        assert "poses" in data_dict.keys() 
-        return SE3(poses=data_dict["poses"].to(device), device=device)
     
     @staticmethod
     def multiply(*Ts) -> SE3:
@@ -128,22 +114,6 @@ class SE3(Action, Observation):
     @property
     def points(self) -> torch.Tensor:
         return self.poses[...,4:]
-    
-    # @staticmethod
-    # def apply(T: SE3, points: Union[torch.Tensor, PointCloud]):
-    #     if type(points) == PointCloud:
-    #         is_pcd = True
-    #         pcd = points
-    #         points = pcd.points
-    #     else:
-    #         is_pcd = False
-
-    #     assert points.shape[-1] == 3, "points must be 3-dimensional."
-    #     assert T.device == points.device, f"device of SE(3) ({T.device}) does not matches device of points ({points.device})."
-    #     points = (quaternion_apply(T.orns, points.view(-1, 3)) + T.points).view(*(points.shape))
-    #     if is_pcd:
-    #         points = PointCloud(points=points, colors=pcd.colors)
-    #     return points
 
     @staticmethod
     def empty(device: Union[str, torch.device] = 'cpu') -> SE3:
