@@ -12,13 +12,11 @@ from .base import DataAbstractBase, Action, Observation
 
 @beartype
 class SE3(Action, Observation):
-    data_args_hint: Dict[str, type] = {
+    data_args_type: Dict[str, type] = {
         'poses': torch.Tensor,
     }
 
-    metadata_args_hint: Dict[str, type] = {
-        'name': str,
-    }
+    metadata_args: List[str] = ['name']
 
     poses: torch.Tensor
     name: str

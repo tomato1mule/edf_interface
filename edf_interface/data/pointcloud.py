@@ -6,7 +6,6 @@ import warnings
 from beartype import beartype
 
 import numpy as np
-import open3d as o3d
 
 import plotly.graph_objects as go
 import matplotlib
@@ -24,14 +23,12 @@ from .se3 import SE3
 
 @beartype
 class PointCloud(Observation):
-    data_args_hint: Dict[str, type] = {
+    data_args_type: Dict[str, type] = {
             'points': torch.Tensor,
             'colors': torch.Tensor,
     }
 
-    metadata_args_hint: Dict[str, type] = {
-            'name': str,
-    }
+    metadata_args: List[str] = ['name']
 
     points: torch.Tensor
     colors: torch.Tensor
@@ -80,13 +77,17 @@ class PointCloud(Observation):
         return PointCloud(points=torch.tensor(points, dtype=torch.float32, device=device), colors=torch.tensor(colors, dtype=torch.float32, device=device), device=device)
 
     @staticmethod
-    def from_o3d(pcd: o3d.geometry.PointCloud, device: Union[str, torch.device] = 'cpu') -> PointCloud:
+    def from_o3d(pcd, device: Union[str, torch.device] = 'cpu') -> PointCloud:
+        import open3d as o3d
+        assert isinstance(pcd, o3d.geometry.PointCloud)
+
         points = torch.tensor(np.asarray(pcd.points), dtype=torch.float32, device=device)
         colors = torch.tensor(np.asarray(pcd.colors), dtype=torch.float32, device=device)
 
         return PointCloud(points=points, colors=colors, device=device)
 
-    def to_o3d(self) -> o3d.geometry.PointCloud:
+    def to_o3d(self):
+        import open3d as o3d
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(self.points.detach().cpu())
         pcd.colors = o3d.utility.Vector3dVector(self.colors.detach().cpu())
