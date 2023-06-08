@@ -148,11 +148,13 @@ class DataAbstractBase(metaclass=ABCMeta):
 
         return self.new(**input_dict)
     
-    def get_data_dict(self, *args, **kwargs) -> Dict[str, Any]:
+    def get_data_dict(self, *args, serialize=False, **kwargs) -> Dict[str, Any]:
         """
         Returns recursive data dictionary.
         Similar to torch.nn.Module's .state_dict() method.
         """
+        kwargs['serialize'] = serialize
+
         data_dict = {}
         for arg in self.data_args_type.keys():
             assert arg != '__type__', f"Don't use '__type__' in data_args. It's reserved."
@@ -163,6 +165,8 @@ class DataAbstractBase(metaclass=ABCMeta):
             elif isinstance(obj, torch.Tensor):
                 assert '__tensor' not in kwargs.keys(), f"Don't use __tensor as a keyward arguments. It's reserved."
                 obj = _torch_tensor_to(obj, *args, **kwargs)
+                if serialize:
+                    obj = pickle.dumps(obj)
             data_dict[arg] = obj
         data_dict['metadata'] = self.metadata
         
@@ -187,6 +191,8 @@ class DataAbstractBase(metaclass=ABCMeta):
                     assert type_.__name__ == val['metadata']['__type__'], f"{type_.__name__} != {val['metadata']['__type__']}"
                     val = type_.from_data_dict(data_dict=val, *args, **kwargs)
                 else:
+                    if isinstance(val, bytes):
+                        val = pickle.loads(val)
                     assert isinstance(val, type_), f"type({arg}) = {type(val)} != {type_}"
                     if isinstance(val, torch.Tensor):
                         val = _torch_tensor_to(__tensor=val, *args, **kwargs)
