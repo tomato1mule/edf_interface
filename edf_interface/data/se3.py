@@ -36,11 +36,11 @@ class SE3(Action, Observation):
             poses = poses.unsqueeze(-2)
         self.poses = poses
 
-        if not torch.allclose(self.poses[...,:4].detach().norm(dim=-1,keepdim=True), torch.tensor([1.0], device=self.device), rtol=0, atol=0.03):
-            warnings.warn("SE3.__init__(): Input quaternion is not normalized")
-
         if renormalize:
             self.poses[...,:4] = self.poses[...,:4] / self.poses[...,:4].norm(dim=-1,keepdim=True)
+
+        if not torch.allclose(self.poses[...,:4].detach().norm(dim=-1,keepdim=True), torch.tensor([1.0], device=self.device), rtol=0, atol=0.03):
+            warnings.warn("SE3.__init__(): Input quaternion is not normalized")
 
         self.inv = self._inv
 
