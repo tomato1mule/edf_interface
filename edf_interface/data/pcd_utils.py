@@ -2,6 +2,7 @@ from typing import Optional, Tuple, Union, Iterable
 
 import numpy as np
 import plotly.graph_objects as go
+from beartype import beartype
 
 import torch
 import torch.nn.functional as F
@@ -104,12 +105,16 @@ def create_o3d_points(points: torch.Tensor, colors: Union[str, Iterable] = 'blue
         points_visual.append(mesh_sphere)
     return points_visual
 
-def voxel_filter(pc: PointCloud, voxel_size: float, coord_reduction: str = "average") -> PointCloud:
-    device = pc.device
+@beartype
+def voxel_filter(points: torch.Tensor, 
+                 features: torch.Tensor, 
+                 voxel_size: float, 
+                 coord_reduction: str = "average") -> Tuple[torch.Tensor, torch.Tensor]:
+    assert points.device == features.device, f"{points.device} != {features.device}"
+    device = points.device
+    mins = points.min(dim=-2).values
 
-    mins = pc.points.min(dim=-2).values
-
-    vox_idx = torch.div((pc.points - mins), voxel_size, rounding_mode='trunc').type(torch.long)
+    vox_idx = torch.div((points - mins), voxel_size, rounding_mode='trunc').type(torch.long)
     shape = vox_idx.max(dim=-2).values + 1
     raveled_idx = torch.tensor(np.ravel_multi_index(vox_idx.T.cpu().numpy(), shape.cpu().numpy()), device = device, dtype=vox_idx.dtype)
 
@@ -117,21 +122,20 @@ def voxel_filter(pc: PointCloud, voxel_size: float, coord_reduction: str = "aver
     nonzero_vox = n_pts_per_vox.nonzero()
     n_pts_per_vox = n_pts_per_vox[nonzero_vox].squeeze(-1)
 
-    color_vox = torch_scatter.scatter(pc.colors, raveled_idx.unsqueeze(-1), dim=-2, dim_size=shape[0]*shape[1]*shape[2])[nonzero_vox].squeeze(-2)
-    color_vox /= n_pts_per_vox.unsqueeze(-1)
+    feature_vox = torch_scatter.scatter(features, raveled_idx.unsqueeze(-1), dim=-2, dim_size=shape[0]*shape[1]*shape[2])[nonzero_vox].squeeze(-2)
+    feature_vox /= n_pts_per_vox.unsqueeze(-1)
 
-    
     if coord_reduction == "center":
         coord_vox = np.stack(np.unravel_index(nonzero_vox.cpu().numpy().reshape(-1), shape.cpu().numpy()), axis=-1)
         coord_vox = torch.tensor(coord_vox, device = device, dtype=vox_idx.dtype)
         coord_vox = coord_vox * voxel_size + mins + (voxel_size/2)
     elif coord_reduction == "average":
-        coord_vox = torch_scatter.scatter(pc.points, raveled_idx.unsqueeze(-1), dim=-2, dim_size=shape[0]*shape[1]*shape[2])[nonzero_vox].squeeze(-2)
+        coord_vox = torch_scatter.scatter(points, raveled_idx.unsqueeze(-1), dim=-2, dim_size=shape[0]*shape[1]*shape[2])[nonzero_vox].squeeze(-2)
         coord_vox /= n_pts_per_vox.unsqueeze(-1)
     else:
         raise ValueError(f"Unknown coordinate reduction method: {coord_reduction}")
 
-    return PointCloud(points=coord_vox, colors=color_vox, device=pc.device)
+    return coord_vox, feature_vox
 
 def normalize_pc_color(data: PointCloud, color_mean: torch.Tensor, color_std: torch.Tensor):
     assert type(data) == PointCloud, f"data must be of PointCloud type, but {type(data)} is given."

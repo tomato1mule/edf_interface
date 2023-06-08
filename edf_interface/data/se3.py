@@ -109,6 +109,7 @@ class SE3(Action, Observation):
     def empty(device: Union[str, torch.device] = 'cpu') -> SE3:
         return SE3(poses=torch.empty((0,7), device=device))
     
+    @property
     def is_empty(self) -> bool:
         if len(self.poses) == 0:
             return True

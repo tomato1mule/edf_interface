@@ -98,6 +98,7 @@ class PointCloud(Observation):
     def empty(device: Union[str, torch.device] = 'cpu') -> PointCloud:
         return PointCloud(points=torch.empty((0,3), device=device), colors=torch.empty((0,3), device=device))
     
+    @property
     def is_empty(self) -> bool:
         if len(self.points) == 0:
             return True

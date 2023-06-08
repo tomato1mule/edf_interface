@@ -57,6 +57,8 @@ def rescale(data: DataAbstractBase, rescale_factor: float):
 
 
 
+
+
 # def normalize_color(data, color_mean: torch.Tensor, color_std: torch.Tensor):
 #     if data is None:
 #         return None
@@ -73,29 +75,6 @@ def rescale(data: DataAbstractBase, rescale_factor: float):
 #             return data
 #         else:
 #             return normalize_pc_color(data=data, color_mean=color_mean, color_std=color_std)
-#     elif type(data) == SE3:
-#         return data
-#     else:
-#         raise TypeError(f"Unknown data type ({type(data)}) is given.")
-
-
-
-# def downsample(data, voxel_size: float, coord_reduction: str = "average"):
-#     if data is None:
-#         return None
-#     elif type(data) == DemoSequence:
-#         demo_seq = [downsample(demo, voxel_size=voxel_size, coord_reduction=coord_reduction) for demo in data]
-#         return DemoSequence(demo_seq = demo_seq, device=data.device)
-#     elif type(data) == TargetPoseDemo:
-#         scene_pc = downsample(data.scene_pc, voxel_size=voxel_size, coord_reduction=coord_reduction)
-#         grasp_pc = downsample(data.grasp_pc, voxel_size=voxel_size, coord_reduction=coord_reduction)
-#         target_poses = downsample(data.target_poses, voxel_size=voxel_size, coord_reduction=coord_reduction)
-#         return TargetPoseDemo(scene_pc=scene_pc, grasp_pc=grasp_pc, target_poses=target_poses, device=data.device, name=data.name)
-#     elif type(data) == PointCloud:
-#         if data.is_empty():
-#             return data
-#         else:
-#             return voxel_filter(pc=data, voxel_size=voxel_size, coord_reduction=coord_reduction)
 #     elif type(data) == SE3:
 #         return data
 #     else:

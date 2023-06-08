@@ -398,6 +398,7 @@ class DataListAbstract(DataAbstractBase):
             if arg not in kwargs.keys():
                 kwargs[arg] = getattr(self, arg)
         
+        data_seq_dirty = False
         for key, val in kwargs.copy().items():
             if key.startswith(self._data_name_prefix):
                 index = self._get_data_idx(key)
@@ -405,6 +406,9 @@ class DataListAbstract(DataAbstractBase):
                     if index >= len(kwargs['data_seq']):
                         raise IndexError(f"Index {key} out of range (Max length: {len(kwargs['data_seq'])})")
                     else:
+                        if not data_seq_dirty:
+                            kwargs['data_seq'] = kwargs['data_seq'].copy()
+                            data_seq_dirty = True
                         kwargs['data_seq'][index] = val
                         kwargs.pop(key)
 
