@@ -12,7 +12,7 @@ from .io_utils import load_yaml
 
 
 @beartype
-def save_demos(demos: List[Demo], dir: str):
+def save_demos(demos: List[Demo], dir: str, mute: bool = False):
     if not os.path.exists(dir):
         os.makedirs(dir)
         
@@ -22,6 +22,8 @@ def save_demos(demos: List[Demo], dir: str):
             demo.save(root_dir=os.path.join(dir, demo_dir))
             f.write("- path: \"" + demo_dir + "\"\n")
             f.write("  type: \"" + demo.__class__.__name__ + "\"\n")
+    if not mute:
+        print(f"saving demonstrations to {os.path.join(dir, demo_dir)}")
 
 @beartype
 def load_demos(dir: str, annotation_file = "data.yaml") -> List[Demo]:
@@ -50,3 +52,7 @@ class DemoDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         return self.data[idx]
+    
+    @staticmethod
+    def save(demos: List[Demo], dir: str, mute: bool = False):
+        save_demos(demos=demos, dir=dir, mute=mute)

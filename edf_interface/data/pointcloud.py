@@ -126,7 +126,7 @@ class PointCloud(Observation):
         else:
             return output
 
-    def transformed(self, Ts: Union[torch.Tensor, SE3], squeeze: bool = False) -> PointCloud:
+    def transformed(self, Ts: Union[torch.Tensor, SE3], squeeze: bool = False) -> Union[PointCloud, List[PointCloud]]:
         return PointCloud.transform_pcd(pcd=self, Ts=Ts, squeeze=squeeze)
     
     @staticmethod

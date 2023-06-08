@@ -12,7 +12,7 @@ from torchvision.transforms import Compose
 from .pointcloud import PointCloud
 from .se3 import SE3
 from .base import DataAbstractBase, Observation, Action, DataListAbstract
-
+from .visualize import visualize_pose
 
 
 @beartype
@@ -57,6 +57,19 @@ class TargetPoseDemo(Demo):
         self.scene_pcd: PointCloud = scene_pcd
         self.target_poses: SE3 = target_poses
         self.grasp_pcd: PointCloud = grasp_pcd
+
+    def plotly(self, point_size=3.0, width=800, height=800, ranges=None):
+        _, fig_pose = visualize_pose(
+            scene_pcd=self.scene_pcd,
+            grasp_pcd=self.grasp_pcd,
+            poses=self.target_poses,
+            point_size=point_size, width=width, height=height,
+            ranges=ranges
+        )
+        return fig_pose
+    
+    def show(self, point_size=3.0, width=800, height=800, ranges=None):
+        self.plotly(point_size=point_size, width=width, height=height, ranges=ranges).show()
 
 @beartype
 class DemoSequence(DataListAbstract, Demo):
