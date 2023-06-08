@@ -205,7 +205,13 @@ class DataAbstractBase(metaclass=ABCMeta):
                 input_kwargs[k] = v
         return cls(**input_kwargs)
     
-    def __repr__(self, abbrv: bool = False) -> str:
+    # def __repr__(self) -> str:
+    #     return self.__class__.__name__
+
+    def __repr__(self) -> str:
+        return self.__str__()
+    
+    def __str__(self, abbrv: bool = False) -> str:
         if abbrv:
             prefix = ''
             bullet = '- '
@@ -222,12 +228,12 @@ class DataAbstractBase(metaclass=ABCMeta):
             repr += prefix + "Metadata: \n"
         # for arg in self.metadata_args:
         #     obj = getattr(self, arg)
-        #     repr += bullet + f"{arg}: {obj.__repr__()}\n"
+        #     repr += bullet + f"{arg}: {obj.__str__()}\n"
         for arg, obj in self.metadata.items():
             if arg == '__type__':
                 pass
             else:
-                repr += bullet + f"{arg}: {obj.__repr__()}\n"
+                repr += bullet + f"{arg}: {obj.__str__()}\n"
 
         if not abbrv:
             repr += prefix + "Data: \n"
@@ -236,23 +242,23 @@ class DataAbstractBase(metaclass=ABCMeta):
 
             repr += bullet + f"{arg}: <{type(obj).__name__}>"
             if hasattr(obj, 'shape'):
-                repr += ' (Shape: ' + obj.shape.__repr__() + ')\n'
+                repr += ' (Shape: ' + obj.shape.__str__() + ')\n'
                 if abbrv:
                     subrepr = ''
                 else:
-                    subrepr: str = obj.__repr__()
+                    subrepr: str = obj.__str__()
             elif isinstance(obj, DataAbstractBase):
                 repr += '\n'
                 if abbrv:
                     subrepr = ''
                 else:
-                    subrepr: str = obj.__repr__(abbrv=True)
+                    subrepr: str = obj.__str__(abbrv=True)
             else:
                 repr += '\n'
                 if abbrv:
                     subrepr = ''
                 else:
-                    subrepr: str = obj.__repr__()
+                    subrepr: str = obj.__str__()
             
             if abbrv:
                 indent = ' ' * (len(bullet))
@@ -264,8 +270,7 @@ class DataAbstractBase(metaclass=ABCMeta):
 
         return repr
     
-    def __str__(self) -> str:
-        return self.__repr__()
+
             
 
 class Observation(DataAbstractBase):
