@@ -16,7 +16,7 @@ import torch
 
 
 from . import registered_datatype
-from .io_utils import recursive_load_dict
+
 
 _bool = builtins.bool
 _device = Union[torch.device, str]
@@ -320,6 +320,7 @@ class DataAbstractBase(metaclass=ABCMeta):
 
     @classmethod
     def load(cls, root_dir: str) -> Self:
+        from .io_utils import recursive_load_dict
         data_dict = recursive_load_dict(root_dir=root_dir)
         return cls.from_data_dict(data_dict)
 
