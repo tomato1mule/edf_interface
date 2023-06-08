@@ -3,6 +3,7 @@ import pickle
 
 import gzip
 import yaml
+import torch
 
 def load_yaml(file_path: str):
     """Loads yaml file from path."""
@@ -23,3 +24,32 @@ def gzip_load(path: str):
     with gzip.open(path, 'rb') as f:
         data = pickle.load(f)
     return data
+
+def recursive_load_dict(root_dir):
+    data_dict = {}
+    for _, dirs, files in os.walk(root_dir):
+        break
+    files.sort()
+    dirs.sort()
+    
+    for file in files:
+        filename, extension = file.split('.')
+        file_path = os.path.join(root_dir, file)
+
+        if extension == 'pt':
+            data = torch.load(file_path)
+        elif extension == 'yaml':
+            with open(file_path) as f:
+                data = yaml.load(f, Loader=yaml.FullLoader)
+        elif extension == 'gzip':
+            with gzip.open(file_path, 'rb') as f:
+                data = pickle.load(f)
+            return data
+        else:
+            raise ValueError(f"Unknown extension '{extension}' in '{file_path}'")
+        data_dict[filename] = data
+
+    for dir in dirs:
+        data_dict[dir] = recursive_load_dict(os.path.join(root_dir, dir))
+
+    return data_dict

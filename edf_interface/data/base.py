@@ -6,14 +6,17 @@ from typing import Union, Optional, List, Tuple, Dict, Any, Iterable, TypeVar, T
 from typing_extensions import Self
 from abc import ABCMeta, abstractmethod
 import warnings
+import pickle
 
 import yaml
+import gzip
 from beartype import beartype
 from beartype.door import is_bearable, die_if_unbearable
 import torch
 
 
 from . import registered_datatype
+from .io_utils import recursive_load_dict
 
 _bool = builtins.bool
 _device = Union[torch.device, str]
@@ -279,7 +282,33 @@ class DataAbstractBase(metaclass=ABCMeta):
 
         return repr
     
+    def save(self, root_dir: str, *args, **kwargs):
+        if 'device' not in kwargs.keys():
+            kwargs['device'] = 'cpu'
 
+        if not os.path.exists(root_dir):
+            os.makedirs(root_dir)
+
+        with open(os.path.join(root_dir, 'metadata.yaml'), 'w') as f:
+            f.write(self._dump_metadata(self.metadata))
+
+        for arg in self.data_args_type.keys():
+            obj = getattr(self, arg)
+            dir = os.path.join(root_dir, arg)
+            if isinstance(obj, DataAbstractBase):
+                obj = obj.to(*args, **kwargs)
+                obj.save(root_dir=dir)
+            elif isinstance(obj, torch.Tensor):
+                obj = obj.to(*args, **kwargs)
+                torch.save(obj, dir + '.pt')
+            else:
+                with gzip.open(dir + 'gzip', 'wb') as f:
+                    pickle.dump(obj, f)
+
+    @classmethod
+    def load(cls, root_dir: str) -> Self:
+        data_dict = recursive_load_dict(root_dir=root_dir)
+        return cls.from_data_dict(data_dict)
 
 
 
@@ -311,7 +340,7 @@ class DataListAbstract(DataAbstractBase):
             return self.new(data_seq=self.data_seq[idx])
         
     @classmethod
-    def get_data_idx(cls, name: str) -> Optional[int]:
+    def _get_data_idx(cls, name: str) -> Optional[int]:
         if name.startswith(cls._data_name_prefix):
             index = name.lstrip(cls._data_name_prefix)
             try:
@@ -323,7 +352,7 @@ class DataListAbstract(DataAbstractBase):
             return None
     
     def __getattr__(self, name: str):
-        data_idx: Optional[int] = self.get_data_idx(name=name)
+        data_idx: Optional[int] = self._get_data_idx(name=name)
         if data_idx is None:
             # if hasattr(super(), '__getattr__'):
             #     return super().__getattr__(name=name)
@@ -334,7 +363,7 @@ class DataListAbstract(DataAbstractBase):
             return self[data_idx]
         
     def __setattr__(self, name: str, value: Any):
-        data_idx: Optional[int] = self.get_data_idx(name=name)
+        data_idx: Optional[int] = self._get_data_idx(name=name)
         if data_idx is None:
             super().__setattr__(name, value)
         else:
@@ -418,7 +447,7 @@ class DataListAbstract(DataAbstractBase):
                 assert isinstance(val, Dict), f"data_dict['metadata'] must be a dictionary but {type(val)} is provided."
                 assert cls.__name__ == val['__type__'], f"Class type {cls.__name__} does not match with type annotated in metadata ({val['__type__']})"
             else:
-                data_idx = cls.get_data_idx(arg)
+                data_idx = cls._get_data_idx(arg)
                 assert data_idx is not None, f"Variable name must be like {cls._data_name_prefix}_(idx)"
                 assert data_idx == len(data_seq)
 
