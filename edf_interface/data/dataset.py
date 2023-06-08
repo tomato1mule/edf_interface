@@ -5,11 +5,14 @@ from beartype import beartype
 import torch
 from torchvision.transforms import Compose
 
-from .demo import DemoSequence
+from . import registered_datatype
+from .base import DataAbstractBase
+from .demo import Demo
 from .io_utils import load_yaml
 
+
 @beartype
-def save_demos(demos: List[DemoSequence], dir: str):
+def save_demos(demos: List[Demo], dir: str):
     if not os.path.exists(dir):
         os.makedirs(dir)
         
@@ -17,43 +20,35 @@ def save_demos(demos: List[DemoSequence], dir: str):
         for i, demo in enumerate(demos):
             demo_dir = f"data/demo_{i}"
             demo.save(root_dir=os.path.join(dir, demo_dir))
-            f.write("- \"" + demo_dir + "\"\n")
+            f.write("- path: \"" + demo_dir + "\"\n")
+            f.write("  type: \"" + demo.__class__.__name__ + "\"\n")
 
 @beartype
-def load_demos(dir: str, annotation_file = "data.yaml") -> List[DemoSequence]:
+def load_demos(dir: str, annotation_file = "data.yaml") -> List[Demo]:
     files = load_yaml(file_path=os.path.join(dir, annotation_file))
 
-    demos: List[DemoSequence] = []
+    demos: List[Demo] = []
     for file in files:
-        demos.append(DemoSequence.load(os.path.join(dir, file)))
+        type_ = file['type']
+        assert hasattr(registered_datatype, type_), f"Unknown data type {type_}"
+        type_ = getattr(registered_datatype, type_)
+        assert issubclass(type_, DataAbstractBase), f"{type_}"
+        demos.append(type_.load(os.path.join(dir, file['path'])))
 
     return demos
 
-
-class DemoSeqDataset(torch.utils.data.Dataset):
+@beartype
+class DemoDataset(torch.utils.data.Dataset):
     def __init__(self, dataset_dir: str, 
                  annotation_file: str = "data.yaml", 
                  load_transforms: Optional[Union[Compose, torch.nn.Module]] = None, 
                  transforms: Optional[Union[Compose, torch.nn.Module]] = None, 
                  device: Union[str, torch.device] = 'cpu'):
-        device = torch.device(device)
-        if device != torch.device('cpu'):
-            #raise NotImplementedError
-            pass
-        
-        self.device = device
-        self.load_transforms = load_transforms if load_transforms else lambda x:x
-        self.transforms = transforms if transforms else lambda x:x
-
-        self.data: List[DemoSequence] = [self.load_transforms(demo).to(self.device) for demo in load_demos(dir = dataset_dir, annotation_file=annotation_file)]
+        self.device = torch.device(device)  
+        self.data: List[Demo] = [demo.to(self.device) for demo in load_demos(dir = dataset_dir, annotation_file=annotation_file)]
 
     def __len__(self):
         return len(self.data)
 
-    # def __getitem__(self, idx):
-    #     data = self.data[idx]
-    #     return {'raw': data, 'processed': self.transforms(data)}
-
     def __getitem__(self, idx):
-        data = self.transforms(self.data[idx])
-        return data
+        return self.data[idx]

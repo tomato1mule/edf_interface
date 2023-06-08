@@ -59,7 +59,7 @@ class TargetPoseDemo(Demo):
         self.grasp_pcd: PointCloud = grasp_pcd
 
 @beartype
-class DemoSequence(DataListAbstract):
+class DemoSequence(DataListAbstract, Demo):
     metadata_args: List[str] = ['name']
     data_seq: List[Demo]
     _data_name_prefix: str = 'step_'

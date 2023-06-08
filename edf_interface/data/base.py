@@ -250,7 +250,7 @@ class DataAbstractBase(metaclass=ABCMeta):
             obj = getattr(self, arg)
 
             if isinstance(obj, DataAbstractBase):
-                repr += bullet + f"{arg}: {self.__repr__()}"
+                repr += bullet + f"{arg}: {obj.__repr__()}"
             else:
                 repr += bullet + f"{arg}: <{type(obj).__name__}>"
             if hasattr(obj, 'shape'):
@@ -272,12 +272,19 @@ class DataAbstractBase(metaclass=ABCMeta):
                 else:
                     subrepr: str = obj.__str__()
             
+            # if abbrv:
+            #     indent = ' ' * (len(bullet))
+            # else:
+            #     indent = ' ' * (len(bullet) + 4)
+            # subrepr = subrepr.replace('\n', '\n' + indent)
+            # subrepr += '\n'
             if abbrv:
-                indent = ' ' * (len(bullet))
+                indent = ''
             else:
                 indent = ' ' * (len(bullet) + 4)
-            subrepr = subrepr.replace('\n', '\n' + indent)
-            subrepr += '\n'
+                subrepr = subrepr.replace('\n', '\n' + indent)
+                subrepr += '\n'
+
             repr += indent + subrepr
 
         return repr
