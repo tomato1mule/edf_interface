@@ -393,9 +393,20 @@ class DataListAbstract(DataAbstractBase):
         """
         Returns a new object which is a shallow copy of original object, but with data and metadata that are specified as kwargs being replaced. 
         """
+        kwargs = kwargs.copy()
         for arg in (['data_seq'] + list(self.metadata_args)):
             if arg not in kwargs.keys():
                 kwargs[arg] = getattr(self, arg)
+        
+        for key, val in kwargs.copy().items():
+            if key.startswith(self._data_name_prefix):
+                index = self._get_data_idx(key)
+                if index is not None:
+                    if index >= len(kwargs['data_seq']):
+                        raise IndexError(f"Index {key} out of range (Max length: {len(kwargs['data_seq'])})")
+                    else:
+                        kwargs['data_seq'][index] = val
+                        kwargs.pop(key)
 
         return self.__class__(**kwargs)
     

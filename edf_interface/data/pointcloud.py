@@ -28,11 +28,12 @@ class PointCloud(Observation):
             'colors': torch.Tensor,
     }
 
-    metadata_args: List[str] = ['name']
+    metadata_args: List[str] = ['name', 'unit_length']
 
     points: torch.Tensor
     colors: torch.Tensor
     name: str
+    unit_length: str
 
     @property
     def device(self) -> torch.device:
@@ -42,10 +43,8 @@ class PointCloud(Observation):
     def __init__(self, points: torch.Tensor, 
                  colors: torch.Tensor, 
                  name: str = '',
-                 device: Optional[Union[str, torch.device]] = None, cmap: Optional[str] = None):
-        if device is not None:
-            points = points.to(device)
-            colors = colors.to(device)
+                 unit_length: str = '1 [m]', 
+                 cmap: Optional[str] = None):
         assert points.device == colors.device
 
 
@@ -68,13 +67,14 @@ class PointCloud(Observation):
             raise ValueError(f"Unknown cmap: {cmap}")
         
         self.name = name
+        self.unit_length = unit_length
     
     def __len__(self) -> int:
         return len(self.points)
 
     @staticmethod
     def from_numpy(points: np.ndarray, colors: np.ndarray, device: Union[str, torch.device] = 'cpu') -> PointCloud:
-        return PointCloud(points=torch.tensor(points, dtype=torch.float32, device=device), colors=torch.tensor(colors, dtype=torch.float32, device=device), device=device)
+        return PointCloud(points=torch.tensor(points, dtype=torch.float32, device=device), colors=torch.tensor(colors, dtype=torch.float32, device=device))
 
     @staticmethod
     def from_o3d(pcd, device: Union[str, torch.device] = 'cpu') -> PointCloud:
@@ -84,7 +84,7 @@ class PointCloud(Observation):
         points = torch.tensor(np.asarray(pcd.points), dtype=torch.float32, device=device)
         colors = torch.tensor(np.asarray(pcd.colors), dtype=torch.float32, device=device)
 
-        return PointCloud(points=points, colors=colors, device=device)
+        return PointCloud(points=points, colors=colors)
 
     def to_o3d(self):
         import open3d as o3d
@@ -113,7 +113,7 @@ class PointCloud(Observation):
         assert ndim <= 2 and Ts.shape[-1] == 7
         assert pcd.device == Ts.device
 
-        from diffusion_edf.pc_utils import transform_points
+        from .pcd_utils import transform_points
         
         points = transform_points(points = pcd.points, Ts = Ts)
         if points.ndim == 3:

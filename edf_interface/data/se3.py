@@ -16,22 +16,22 @@ class SE3(Action, Observation):
         'poses': torch.Tensor,
     }
 
-    metadata_args: List[str] = ['name']
+    metadata_args: List[str] = ['name', 'unit_length']
 
     poses: torch.Tensor
     name: str
+    unit_length: str
 
     @property
     def device(self) -> torch.device:
         return self.poses.device
 
-    def __init__(self, poses: torch.Tensor, name: str = '', device: Optional[Union[str, torch.device]] = None, renormalize: bool = True):
+    def __init__(self, poses: torch.Tensor, name: str = '', unit_length: str = '1 [m]', renormalize: bool = True):
         super().__init__()
         self.name: str = name
+        self.unit_length: str = unit_length
         assert poses.ndim <= 2 and poses.shape[-1] == 7
 
-        if device is not None:
-            poses = poses.to(device)
         if poses.ndim == 1:
             poses = poses.unsqueeze(-2)
         self.poses = poses
@@ -45,31 +45,23 @@ class SE3(Action, Observation):
         self.inv = self._inv
 
     @staticmethod
-    def from_orn_and_pos(orns: torch.Tensor, positions: torch.Tensor, versor_last_input: bool = False, device: Optional[Union[str, torch.device]] = None) -> SE3:
+    def from_orn_and_pos(orns: torch.Tensor, positions: torch.Tensor, versor_last_input: bool = False) -> SE3:
+        assert orns.device == positions.device
         assert positions.ndim == 2 and orns.ndim == 2 and positions.shape[-1] == 3 and orns.shape[-1] == 4
         assert positions.shape[-2] == orns.shape[-2]
-
-        if device is None:
-            assert orns.device == positions.device
-            device = positions.device
-        else:
-            device = torch.device(device)
-            orns = orns.to(device)
-            positions = positions.to(device)
 
         if versor_last_input:
             poses = torch.cat((orns[..., 3:4], orns[..., :3], positions), dim=-1)
         else:
             poses = torch.cat((orns, positions), dim=-1)
 
-        return SE3(poses=poses, device=device)
+        return SE3(poses=poses)
 
     @staticmethod
     def from_numpy(orns: np.ndarray, positions: np.ndarray, versor_last_input: bool = False, device: Union[str, torch.device] = 'cpu') -> SE3:
         return SE3.from_orn_and_pos(orns = torch.tensor(orns, dtype=torch.float32, device=device), 
                                     positions=torch.tensor(positions, dtype=torch.float32, device=device), 
-                                    versor_last_input=versor_last_input, 
-                                    device=device)
+                                    versor_last_input=versor_last_input)
 
     def __len__(self) -> int:
         return len(self.poses)
@@ -115,7 +107,7 @@ class SE3(Action, Observation):
 
     @staticmethod
     def empty(device: Union[str, torch.device] = 'cpu') -> SE3:
-        return SE3(poses=torch.empty((0,7), device=device), device=device)
+        return SE3(poses=torch.empty((0,7), device=device))
     
     def is_empty(self) -> bool:
         if len(self.poses) == 0:
