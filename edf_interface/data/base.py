@@ -209,7 +209,13 @@ class DataAbstractBase(metaclass=ABCMeta):
     #     return self.__class__.__name__
 
     def __repr__(self) -> str:
-        return self.__str__()
+        #return f"<{self.__class__.__name__} (device: {str(self.device)})>"
+        # return f"<{self.__class__.__name__} ({str(self.device)})>"
+        device_str = str(self.device)
+        if device_str != 'cpu':
+            return f"<{self.__class__.__name__} ({device_str})>"
+        else:
+            return f"<{self.__class__.__name__}>"
     
     def __str__(self, abbrv: bool = False) -> str:
         if abbrv:
@@ -222,7 +228,7 @@ class DataAbstractBase(metaclass=ABCMeta):
         if abbrv:
             repr = ""
         else:
-            repr = f"<{self.__class__.__name__}>  (device: {str(self.device)})\n"
+            repr = self.__repr__() + "\n"
 
         if not abbrv:
             repr += prefix + "Metadata: \n"
@@ -240,7 +246,10 @@ class DataAbstractBase(metaclass=ABCMeta):
         for arg in self.data_args_type.keys():
             obj = getattr(self, arg)
 
-            repr += bullet + f"{arg}: <{type(obj).__name__}>"
+            if isinstance(obj, DataAbstractBase):
+                repr += bullet + f"{arg}: {self.__repr__()}"
+            else:
+                repr += bullet + f"{arg}: <{type(obj).__name__}>"
             if hasattr(obj, 'shape'):
                 repr += ' (Shape: ' + obj.shape.__str__() + ')\n'
                 if abbrv:
@@ -270,6 +279,181 @@ class DataAbstractBase(metaclass=ABCMeta):
 
         return repr
     
+
+
+
+
+
+
+
+
+@beartype
+class DataListAbstract(DataAbstractBase):
+    metadata_args: List[str]
+    data_seq: List[DataAbstractBase]
+    _data_name_prefix: str = 'data_'
+    
+    @property
+    def data_args_type(self) -> Dict[str, type]:
+        outputs = {}
+        for i, data in enumerate(self.data_seq):
+            outputs[f"{self._data_name_prefix}{i}"] = type(data)
+        return outputs
+
+    def __len__(self) -> int:
+        return len(self.data_seq)
+    
+    def __getitem__(self, idx) -> Union[Self, DataAbstractBase]:
+        assert type(idx) == slice or type(idx) == int, "Indexing must be an integer or a slice with single axis."
+        if type(idx) == int:
+            return self.data_seq[idx]
+        else:
+            return self.new(data_seq=self.data_seq[idx])
+        
+    @classmethod
+    def get_data_idx(cls, name: str) -> Optional[int]:
+        if name.startswith(cls._data_name_prefix):
+            index = name.lstrip(cls._data_name_prefix)
+            try:
+                index = int(name.lstrip(cls._data_name_prefix))
+                return index
+            except ValueError:
+                return None
+        else:
+            return None
+    
+    def __getattr__(self, name: str):
+        data_idx: Optional[int] = self.get_data_idx(name=name)
+        if data_idx is None:
+            # if hasattr(super(), '__getattr__'):
+            #     return super().__getattr__(name=name)
+            # else:
+            #     raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+            pass
+        else:
+            return self[data_idx]
+        
+    def __setattr__(self, name: str, value: Any):
+        data_idx: Optional[int] = self.get_data_idx(name=name)
+        if data_idx is None:
+            super().__setattr__(name, value)
+        else:
+            assert isinstance(value, DataAbstractBase), f"{name} must be an isntance of DataAbstractBase"
+            if data_idx == len(self):
+                self.data_seq.append(value)
+            elif data_idx < len(self):
+                self.data_seq[data_idx] = value
+            else:
+                raise IndexError(f"{name} index larger than maximum lenghth: {len(self)}")
+
+    def new(self, **kwargs) -> Self:
+        """
+        Returns a new object which is a shallow copy of original object, but with data and metadata that are specified as kwargs being replaced. 
+        """
+        for arg in (['data_seq'] + list(self.metadata_args)):
+            if arg not in kwargs.keys():
+                kwargs[arg] = getattr(self, arg)
+
+        return self.__class__(**kwargs)
+    
+    @property
+    def is_empty(self) -> bool:
+        if len(self) == 0:
+            return True
+        else:
+            return False
+        
+    def __init__(self, data_seq: Sequence[DataAbstractBase]):
+        self.data_seq = data_seq
+        super().__init__()
+        
+    @classmethod
+    def empty(cls, *args, **kwargs) -> Self:
+        return cls([], *args, **kwargs)
+
+    @property
+    def device(self) -> Optional[torch.device]:
+        if self.is_empty:
+            return None
+        
+        device = None
+        for data in self.data_seq:
+            if hasattr(data, 'device'):
+                device = data.device
+        
+        return device
+    
+    def to(self, *args, **kwargs) -> Self:
+        """
+        similar to pytorch Tensor objects' .to() method
+        """
+        if self.is_empty:
+            return self
+        else:
+            data_seq = []
+            for data in self.data_seq:
+                if isinstance(data, DataAbstractBase):
+                    data = data.to(*args, **kwargs)
+                    data_seq.append(data)
+                elif isinstance(data, torch.Tensor):
+                    assert '__tensor' not in kwargs.keys(), f"Don't use __tensor as a keyward arguments. It is reserved."
+                    data = _torch_tensor_to(data, *args, **kwargs)
+                    data_seq.append(data)
+                elif hasattr(data, 'to'):
+                    raise NotImplementedError(f"'to()' is not implemented for data type {type(data)}")
+                else:
+                    data_seq.append(data)
+
+            return self.new(data_seq=data_seq)
+    
+    @classmethod
+    def from_data_dict(cls, data_dict: Dict[str, Any], *args, **kwargs) -> Self:
+        """
+        Reconstruct data object from dictionary.
+        """
+        inputs: Dict[str, Any] = {}
+        data_seq = []
+        for arg, val in data_dict.items():
+            if arg == 'metadata':
+                assert isinstance(val, Dict), f"data_dict['metadata'] must be a dictionary but {type(val)} is provided."
+                assert cls.__name__ == val['__type__'], f"Class type {cls.__name__} does not match with type annotated in metadata ({val['__type__']})"
+            else:
+                data_idx = cls.get_data_idx(arg)
+                assert data_idx is not None, f"Variable name must be like {cls._data_name_prefix}_(idx)"
+                assert data_idx == len(data_seq)
+
+                assert isinstance(val, Dict), f"data_dict[{arg}] must be a dictionary"
+                assert 'metadata' in val.keys(), f"data_dict[{arg}] must be a dictionary, and has 'metadata' as a key"
+                
+                from . import registered_datatype
+                assert hasattr(registered_datatype, val['metadata']['__type__']), f"Unknown data type {val['metadata']['__type__']}"
+                type_ = getattr(registered_datatype, val['metadata']['__type__'])
+                assert issubclass(type_, DataAbstractBase), f"{type_}"
+
+                val = type_.from_data_dict(data_dict=val, *args, **kwargs)
+                data_seq.append(val)
+        inputs['data_seq'] = data_seq
+
+        if 'metadata' in data_dict.keys():
+            metadata = data_dict['metadata']
+            assert isinstance(metadata, Dict)
+            for arg in metadata.keys():
+                assert arg not in inputs.keys(), f"metadata_arg {arg} already exists as a data argument!"
+        else:
+            metadata = {}
+        
+        input_kwargs = {}
+        for k,v in {**inputs, **metadata}.items():
+            if k=='__type__':  # __type__ is not required as an argument to the class constructor
+                pass
+            else:
+                input_kwargs[k] = v
+        return cls(**input_kwargs)
+    
+
+
+
+
 
             
 
