@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-from typing import Optional
+from typing import Optional, List, Dict
 
 from beartype import beartype
 
@@ -23,6 +23,10 @@ class EnvHandleAbstractBase(metaclass=ABCMeta):
 
     @abstractmethod
     def observe_grasp(self) -> PointCloud:
+        pass
+
+    @abstractmethod
+    def move_se3(self, target_poses: SE3) -> bool:
         pass
 
     # @abstractmethod
@@ -60,6 +64,12 @@ class EnvService:
     def observe_grasp(self, *args, **kwargs):
         return self.env_handle.observe_grasp(*args, **kwargs)
     
+    @Pyro5.api.expose
+    @serialize_if_data
+    def move_se3(self, target_poses: Dict, *args, **kwargs) -> bool:
+        target_poses = SE3.from_data_dict(target_poses)
+        return self.env_handle.move_se3(target_poses=target_poses, *args, **kwargs)
+    
 @beartype
 class EnvServer:
     env_service: EnvService
@@ -77,3 +87,6 @@ class EnvServer:
         
     def run(self, nonblocking: bool = False):
         return self.pyro_server.run(nonblocking=True)
+    
+    def close(self):
+        self.pyro_server.close()

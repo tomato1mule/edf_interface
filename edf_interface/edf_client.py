@@ -24,3 +24,9 @@ class EdfClient():
     def observe_grasp(self) -> PointCloud:
         data_dict = self.env_service.observe_grasp()
         return PointCloud.from_data_dict(data_dict=data_dict)
+    
+    def move_se3(self, target_poses: SE3) -> bool:
+        target_poses = target_poses.get_data_dict(serialize=True)
+        success = self.env_service.move_se3(target_poses=target_poses)
+        return success
+    
