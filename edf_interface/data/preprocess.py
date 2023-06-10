@@ -5,6 +5,7 @@ import torch
 
 from edf_interface.data import DemoDataset, TargetPoseDemo, DemoSequence, SE3, PointCloud, DataAbstractBase
 from edf_interface.data.utils import units_to_str, str_to_units
+from edf_interface.data.pcd_utils import voxel_filter
 
 
 class PreprocessDataTypeException(Exception):
@@ -54,6 +55,20 @@ def rescale(data: DataAbstractBase, rescale_factor: float):
         else:
             raise PreprocessNonDataException(f"Unsupported primitive type: {type(data)}")
 
+@beartype
+@recursive_apply
+def downsample(data: DataAbstractBase, voxel_size: float, coord_reduction: str = "average"):
+    if type(data) == PointCloud:
+        if data.is_empty:
+            return data
+        else:
+            points, colors = voxel_filter(points=data.points, features=data.colors, voxel_size=voxel_size, coord_reduction=coord_reduction)
+            return data.new(points=points, colors=colors)
+    else:
+        if isinstance(data, DataAbstractBase):
+            raise PreprocessDataTypeException(f"Unsupported data type: {type(data)}")
+        else:
+            raise PreprocessNonDataException(f"Unsupported primitive type: {type(data)}")
 
 
 

@@ -368,11 +368,10 @@ class DataListAbstract(DataAbstractBase):
     def __getattr__(self, name: str):
         data_idx: Optional[int] = self._get_data_idx(name=name)
         if data_idx is None:
-            # if hasattr(super(), '__getattr__'):
-            #     return super().__getattr__(name=name)
-            # else:
-            #     raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
-            pass
+            if hasattr(super(), '__getattr__'):
+                return super().__getattr__(name=name)
+            else:
+                raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
         else:
             return self[data_idx]
         
