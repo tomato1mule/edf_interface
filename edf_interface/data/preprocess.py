@@ -1,4 +1,4 @@
-from typing import Union, Optional, List, Tuple, Dict
+from typing import Union, Optional, List, Tuple, Dict, Any
 
 from beartype import beartype
 import torch
@@ -6,6 +6,7 @@ import torch
 from edf_interface.data import DemoDataset, TargetPoseDemo, DemoSequence, SE3, PointCloud, DataAbstractBase
 from edf_interface.data.utils import units_to_str, str_to_units
 from edf_interface.data.pcd_utils import voxel_filter
+from edf_interface.data import transforms
 
 
 class PreprocessDataTypeException(Exception):
@@ -14,29 +15,51 @@ class PreprocessDataTypeException(Exception):
 class PreprocessNonDataException(Exception):
     pass
 
-def recursive_apply(fn):
-    def wrapped(data: DataAbstractBase, *args, **kwargs):
-        data_args = data.data_args_type.keys()
-        data_kwargs = {}
-        for arg in data_args:
-            obj = getattr(data, arg)
-            try:
-                obj = fn(data=obj, *args, **kwargs)
-                data_kwargs[arg] = obj
-            except PreprocessDataTypeException:
-                obj = wrapped(data=obj, *args, **kwargs)
-                data_kwargs[arg] = obj
-            except PreprocessNonDataException:
-                # data_kwargs[arg] = obj
-                pass
-        return data.new(**data_kwargs)
+# @beartype
+# def recursive_apply(fn):
+#     @beartype
+#     def wrapped(data: DataAbstractBase, *args, **kwargs) -> DataAbstractBase:
+#         data_args = data.data_args_type.keys()
+#         data_kwargs = {}
+#         for arg in data_args:
+#             obj = getattr(data, arg)
+#             try:
+#                 obj = fn(data=obj, *args, **kwargs)
+#                 data_kwargs[arg] = obj
+#             except PreprocessDataTypeException:
+#                 obj = wrapped(data=obj, *args, **kwargs)
+#                 data_kwargs[arg] = obj
+#             except PreprocessNonDataException:
+#                 # data_kwargs[arg] = obj
+#                 pass
+#         return data.new(**data_kwargs)
 
-    return wrapped
+#     return wrapped
+
+@beartype
+def recursive_apply(fn):
+    @beartype
+    def _recurse(data: Union[DataAbstractBase, Any], *args, **kwargs) -> Union[DataAbstractBase, Any]:
+        try:
+            data = fn(data=data, *args, **kwargs)
+            return data
+        except PreprocessDataTypeException:
+            data_args = data.data_args_type.keys()
+            data_kwargs = {}
+            for arg in data_args:
+                obj = getattr(data, arg)
+                obj = _recurse(data=obj, *args, **kwargs)
+                data_kwargs[arg] = obj
+            return data.new(**data_kwargs)
+        except PreprocessNonDataException:
+            return data
+
+    return _recurse
 
 
 @beartype
 @recursive_apply
-def rescale(data: DataAbstractBase, rescale_factor: float):
+def rescale(data: Union[DataAbstractBase, Any], rescale_factor: float) -> DataAbstractBase:
     if type(data) == PointCloud:
         val, unit = str_to_units(data.unit_length)
         val=val/rescale_factor
@@ -57,7 +80,7 @@ def rescale(data: DataAbstractBase, rescale_factor: float):
 
 @beartype
 @recursive_apply
-def downsample(data: DataAbstractBase, voxel_size: float, coord_reduction: str = "average"):
+def downsample(data: Union[DataAbstractBase, Any], voxel_size: float, coord_reduction: str = "average") -> DataAbstractBase:
     if type(data) == PointCloud:
         if data.is_empty:
             return data
@@ -70,6 +93,42 @@ def downsample(data: DataAbstractBase, voxel_size: float, coord_reduction: str =
         else:
             raise PreprocessNonDataException(f"Unsupported primitive type: {type(data)}")
 
+@beartype
+@recursive_apply
+def change_frame(data: Union[DataAbstractBase, Any], frame: Union[torch.Tensor, SE3]) -> DataAbstractBase: 
+    if type(data) == PointCloud:
+        if data.is_empty:
+            return data
+        else:
+            if isinstance(frame, SE3):
+                frame: torch.Tensor = frame.poses
+            assert frame.shape == (7,) or frame.shape == (1,7), f"frame.shape must be (1, 7) or (7,) but {frame.shape} is given."
+            q, x = frame[..., :4], frame[..., 4:]
+            assert data.points.ndim == 2 and data.points.shape[-1] == 3, f"{data.points.shape}"
+            points = transforms.quaternion_apply(q, data.points) + x
+            return data.new(points=points)
+    elif type(data) == SE3:
+        if data.is_empty:
+            return data
+        else:
+            if isinstance(frame, SE3):
+                frame: torch.Tensor = frame.poses
+            assert frame.shape == (7,) or frame.shape == (1,7), f"frame.shape must be (1, 7) or (7,) but {frame.shape} is given."
+            q, x = frame[..., :4], frame[..., 4:]
+            assert data.poses.ndim == 2 and data.poses.shape[-1] == 7, f"{data.poses.shape}"
+            q_new = transforms.quaternion_multiply(q, data.poses[..., :4])
+            q_new = transforms.normalize_quaternion(q_new)
+            x_new = transforms.quaternion_apply(q, data.poses[...,4:]) + x
+            return data.new(poses = torch.cat([q_new, x_new], dim=-1))
+    elif type(data) == TargetPoseDemo:
+        scene_pcd = change_frame(data=data.scene_pcd, frame=frame)
+        target_poses = change_frame(data=data.target_poses, frame=frame)
+        return data.new(scene_pcd=scene_pcd, target_poses=target_poses)
+    else:
+        if isinstance(data, DataAbstractBase):
+            raise PreprocessDataTypeException(f"Unsupported data type: {type(data)}")
+        else:
+            raise PreprocessNonDataException(f"Unsupported primitive type: {type(data)}")
 
 
 
