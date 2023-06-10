@@ -34,6 +34,7 @@ class AgentService:
                            task_name:str, 
                            grasp_pcd: Dict, 
                            current_poses: Dict,
+                           **kwargs,
                            ):
         scene_pcd = PointCloud.from_data_dict(scene_pcd)
         if grasp_pcd:
@@ -45,7 +46,7 @@ class AgentService:
         else:
             current_poses = None
 
-        return self.agent_handle.infer_target_poses(scene_pcd=scene_pcd, grasp_pcd=grasp_pcd, task_name=task_name, current_poses=current_poses)
+        return self.agent_handle.infer_target_poses(scene_pcd=scene_pcd, grasp_pcd=grasp_pcd, task_name=task_name, current_poses=current_poses, **kwargs)
     
 @beartype
 class AgentServer:
