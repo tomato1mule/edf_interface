@@ -51,17 +51,17 @@ class EnvService:
         
     @Pyro5.api.expose
     @serialize_if_data
-    def get_current_poses(self, *args, **kwargs):
+    def get_current_poses(self, *args, **kwargs) -> SE3:
         return self.env_handle.get_current_poses(*args, **kwargs)
     
     @Pyro5.api.expose
     @serialize_if_data
-    def observe_scene(self, *args, **kwargs):
+    def observe_scene(self, *args, **kwargs) -> PointCloud:
         return self.env_handle.observe_scene(*args, **kwargs)
     
     @Pyro5.api.expose
     @serialize_if_data
-    def observe_grasp(self, *args, **kwargs):
+    def observe_grasp(self, *args, **kwargs) -> PointCloud:
         return self.env_handle.observe_grasp(*args, **kwargs)
     
     @Pyro5.api.expose
@@ -86,7 +86,7 @@ class EnvServer:
                                       init_nameserver=init_nameserver)
         
     def run(self, nonblocking: bool = False):
-        return self.pyro_server.run(nonblocking=True)
+        return self.pyro_server.run(nonblocking=nonblocking)
     
     def close(self):
         self.pyro_server.close()
