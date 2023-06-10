@@ -1,4 +1,5 @@
-from typing import Union, Optional, List, Tuple, Dict, Any
+from typing import Union, Optional, List, Tuple, Dict, Any, Callable
+from functools import partial
 
 from beartype import beartype
 import torch
@@ -15,26 +16,13 @@ class PreprocessDataTypeException(Exception):
 class PreprocessNonDataException(Exception):
     pass
 
-# @beartype
-# def recursive_apply(fn):
-#     @beartype
-#     def wrapped(data: DataAbstractBase, *args, **kwargs) -> DataAbstractBase:
-#         data_args = data.data_args_type.keys()
-#         data_kwargs = {}
-#         for arg in data_args:
-#             obj = getattr(data, arg)
-#             try:
-#                 obj = fn(data=obj, *args, **kwargs)
-#                 data_kwargs[arg] = obj
-#             except PreprocessDataTypeException:
-#                 obj = wrapped(data=obj, *args, **kwargs)
-#                 data_kwargs[arg] = obj
-#             except PreprocessNonDataException:
-#                 # data_kwargs[arg] = obj
-#                 pass
-#         return data.new(**data_kwargs)
-
-#     return wrapped
+@beartype
+def compose_procs(proc_fns: List[Callable]) -> Callable:
+    def composed(x):
+        for proc in proc_fns:
+            x = proc(x)
+        return x
+    return composed
 
 @beartype
 def recursive_apply(fn):
