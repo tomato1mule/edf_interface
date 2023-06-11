@@ -11,6 +11,12 @@ Install PyTorch if you don't have it.
 pip install torch==1.13.1
 ```
 
+# Example
+Please run the following notebooks in order with Jupyter:
+1. 'env_server.ipynb'
+2. 'agent_server.ipynb'
+3. 'client.ipynb'
+
 # Usage
 Use @expose decorator to share server's class methods with clients.
 
