@@ -5,7 +5,7 @@ Pyro5.config.SERPENT_BYTES_REPR = True
 import Pyro5.api
 from .nameserver import NameServer
 from .server import PyroServer
-from .utils import get_service_proxy, serialize, serialize_if
+from .utils import get_service_proxy
 
 expose = Pyro5.api.expose
 

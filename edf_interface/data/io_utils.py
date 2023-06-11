@@ -6,8 +6,6 @@ import gzip
 import yaml
 import torch
 
-from .base import DataAbstractBase
-
 def load_yaml(file_path: str):
     """Loads yaml file from path."""
     with open(file_path) as file:
@@ -56,3 +54,9 @@ def recursive_load_dict(root_dir):
         data_dict[dir] = recursive_load_dict(os.path.join(root_dir, dir))
 
     return data_dict
+
+def pickle_serialize(x):
+    return pickle.dumps(x)
+
+def pickle_deserialize(x):
+    return pickle.loads(x)

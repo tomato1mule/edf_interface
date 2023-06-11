@@ -16,6 +16,7 @@ import torch
 
 
 from . import registered_datatype
+from .io_utils import pickle_serialize, pickle_deserialize
 
 
 _bool = builtins.bool
@@ -166,7 +167,7 @@ class DataAbstractBase(metaclass=ABCMeta):
                 assert '__tensor' not in kwargs.keys(), f"Don't use __tensor as a keyward arguments. It's reserved."
                 obj = _torch_tensor_to(obj, *args, **kwargs)
                 if serialize:
-                    obj = pickle.dumps(obj)
+                    obj = pickle_serialize(obj)
             data_dict[arg] = obj
         data_dict['metadata'] = self.metadata
         
@@ -192,7 +193,7 @@ class DataAbstractBase(metaclass=ABCMeta):
                     val = type_.from_data_dict(data_dict=val, *args, **kwargs)
                 else:
                     if isinstance(val, bytes):
-                        val = pickle.loads(val)
+                        val = pickle_deserialize(val)
                     assert isinstance(val, type_), f"type({arg}) = {type(val)} != {type_}"
                     if isinstance(val, torch.Tensor):
                         val = _torch_tensor_to(__tensor=val, *args, **kwargs)
