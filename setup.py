@@ -25,5 +25,7 @@ setup(
     install_requires=[
         'beartype',
         'Pyro5==5.14',
+        'plotly==5.13',
+        'pyyaml'
     ]
 )
