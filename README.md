@@ -68,29 +68,21 @@ server.close()
 ## Client Example
 ```python
 from edf_interface.data import SE3, PointCloud
-from edf_interface.pyro import get_service_proxy, wrap_remote
+from edf_interface.pyro import PyroClientBase
 
-class EdfClient():
+@beartype
+class ExampleClient(PyroClientBase):
     def __init__(self, env_server_name: str = 'env',
                  agent_sever_name: str = 'agent'):
-        self._env_service = get_service_proxy(env_server_name)
-        self._agent_service = get_service_proxy(agent_sever_name)
-        self._register_remote_methods(self._env_service)
-        self._register_remote_methods(self._agent_service)
+        super().__init__(service_names=[env_server_name, agent_sever_name])
 
-    def _register_remote_methods(self, service):
-        service._pyroBind()
-        for method in service._pyroMethods:
-            if hasattr(self, method):
-                setattr(self, method, wrap_remote(getattr(service, method)))
-
-    def get_current_poses(self) -> SE3: ...
+    def get_current_poses(self, **kwargs) -> SE3: ...
     
-    def observe_scene(self) -> PointCloud: ...
+    def observe_scene(self, **kwargs) -> PointCloud: ...
     
-    def observe_grasp(self) -> PointCloud: ...
+    def observe_grasp(self, **kwargs) -> PointCloud: ...
 
-    def move_se3(self, target_poses: SE3) -> bool: ...
+    def move_se3(self, target_poses: SE3, **kwargs) -> bool: ...
 
     def infer_target_poses(self, scene_pcd: PointCloud, 
                            task_name: str,
@@ -98,5 +90,5 @@ class EdfClient():
                            current_poses: Optional[SE3] = None, 
                            **kwargs) -> SE3: ...
 
-client = EdfClient(env_server_name='env', agent_sever_name='agent')
+client = ExampleClient(env_server_name='env', agent_sever_name='agent')
 ```

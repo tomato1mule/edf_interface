@@ -8,6 +8,8 @@ from beartype import beartype
 
 import Pyro5.api, Pyro5.errors, Pyro5.client
 
+PYRO_PROXY = Pyro5.api.Proxy
+
 @beartype
 def look_for_nameserver(wait: bool = True,
                         timeout: Union[float, int] = -1, # infty if negative
