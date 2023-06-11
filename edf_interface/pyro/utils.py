@@ -42,21 +42,57 @@ def get_service_proxy(name: str) -> Pyro5.api.Proxy:
 
     return proxy
 
-def serialize_input(serializer: Callable) -> Callable:
-    def _serialize(fn):
-        def wrapped(*args, **kwargs):
-            args = [serializer(arg) for arg in args]
-            kwargs = {key: serializer(val) for key, val in kwargs.items()}
-            out = fn(*args, **kwargs)
-            return out
+def serialize_input(serializer: Callable, class_method: bool) -> Callable:
+    def serialize_(fn):
+        if class_method:
+            def wrapped(self, *args, **kwargs):
+                args = [serializer(arg) for arg in args]
+                kwargs = {key: serializer(val) for key, val in kwargs.items()}
+                out = fn(self, *args, **kwargs)
+                return out
+        else:
+            def wrapped(*args, **kwargs):
+                args = [serializer(arg) for arg in args]
+                kwargs = {key: serializer(val) for key, val in kwargs.items()}
+                out = fn(*args, **kwargs)
+                return out
         return wrapped
-    return _serialize
+    return serialize_
 
 def serialize_output(serializer: Callable) -> Callable:
-    def _serialize(fn):
+    def serialize_(fn):
         def wrapped(*args, **kwargs):
             out = fn(*args, **kwargs)
             return serializer(out)
         return wrapped
-    return _serialize
+    return serialize_
+
+def deserialize_input(deserializer: Callable, class_method: bool) -> Callable:
+    def deserialize_(fn):
+        if class_method:
+            def wrapped(self, *args, **kwargs):
+                if class_method:
+                    args = args [1:]
+                args = [deserializer(arg) for arg in args]
+                kwargs = {key: deserializer(val) for key, val in kwargs.items()}
+                out = fn(self, *args, **kwargs)
+                return out
+        else:
+            def wrapped(*args, **kwargs):
+                if class_method:
+                    args = args [1:]
+                args = [deserializer(arg) for arg in args]
+                kwargs = {key: deserializer(val) for key, val in kwargs.items()}
+                out = fn(*args, **kwargs)
+                return out
+        return wrapped
+    return deserialize_
+
+def deserialize_output(deserializer: Callable) -> Callable:
+    def deserialize_(fn):
+        def wrapped(*args, **kwargs):
+            out = fn(*args, **kwargs)
+            return deserializer(out)
+        return wrapped
+    return deserialize_
 
