@@ -56,24 +56,3 @@ def recursive_load_dict(root_dir):
         data_dict[dir] = recursive_load_dict(os.path.join(root_dir, dir))
 
     return data_dict
-
-def serialize(serializer):
-    def _serialize(fn):
-        def wrapped(*args, **kwargs):
-            out = fn(*args, **kwargs)
-            return serializer(out)
-        return wrapped
-    return _serialize
-
-# def serialize_if_data():
-#     def serializer(x):
-#         if isinstance(x, DataAbstractBase):
-#             return x.get_data_dict(serialize=True)
-#         else:
-#             return x
-#     return serialize(serializer=serializer)
-
-serialize_if_data = serialize(
-    serializer = lambda x: x.get_data_dict(serialize=True) if isinstance(x, DataAbstractBase) else x
-)
-

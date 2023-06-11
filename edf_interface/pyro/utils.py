@@ -41,3 +41,22 @@ def get_service_proxy(name: str) -> Pyro5.api.Proxy:
     proxy = Pyro5.api.Proxy(uri)    # use name server object lookup uri shortcut
 
     return proxy
+
+def serialize(serializer):
+    def _serialize(fn):
+        def wrapped(*args, **kwargs):
+            out = fn(*args, **kwargs)
+            return serializer(out)
+        return wrapped
+    return _serialize
+
+def serialize_if(condition: Callable, serializer: Callable):
+    def _serializer(x):
+        criteria = condition(x)
+        assert isinstance(criteria, bool), f"{criteria}"
+        if criteria:
+            return serializer(x)
+        else:
+            return x
+    return serialize(serializer=_serializer)
+

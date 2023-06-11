@@ -9,6 +9,10 @@ import Pyro5.nameserver, Pyro5.core, Pyro5.server, Pyro5.client, Pyro5.errors, P
 from edf_interface.pyro.nameserver import NameServer
 from edf_interface.pyro.utils import look_for_nameserver
 
+class ServiceNotRegisteredException(Exception):
+    pass
+
+@beartype
 class PyroServer():
     nameserver: Optional[NameServer] = None
     nameserver_proxy: Pyro5.client.Proxy = None
@@ -18,26 +22,15 @@ class PyroServer():
     server_name: str    
     log: logging.Logger
 
-    @beartype
-    def __init__(self, 
-                 service,
-                 server_name: Optional[str] = None, 
+    def __init__(self, server_name: str, 
                  init_nameserver: Optional[bool] = None,
                  nameserver_timeout: Union[float, int, str] = 'default'):
 
         # assert service._pyroExposed is True # use '@Pyro5.api.expose' decorator on the class.
-
-        if server_name is None:
-            if isinstance(service, object):
-                self.server_name = service.__class__.__name__
-            else:
-                self.server_name = service.__name__
-        else:
-            self.server_name = server_name
+        self.service = None
+        self.server_name = server_name
         self.log = logging.getLogger(self.server_name)
-        #self.service = Pyro5.api.expose(service)
-        self.service = service
-
+        
         ############ Initialize Nameserver Proxy #############
         if init_nameserver:
             self.log.warning(f"{self.server_name}: Initializing nameserver")
@@ -74,14 +67,18 @@ class PyroServer():
                 raise Pyro5.errors.NamingError(f"{self.server_name}: Cannot find nameserver.")
         ######################################################
 
+    def register_service(self, service):
+        self.service = service
+
     def init_server(self):
+        if self.service is None:
+            raise ServiceNotRegisteredException(f"Service not registered! Call PyroServer.register_service(...) before running the server.")
         ############ Initialize Server #############
         self.server_daemon = Pyro5.server.Daemon()                           # make a Pyro daemon
         self.uri = self.server_daemon.register(self.service)                 # register the greeting maker as a Pyro object
         self.nameserver_proxy.register(self.server_name, self.uri)           # register the object with a name in the name server
         ######################################################
 
-    @beartype
     def _request_loop(self):
         try:
             self.server_daemon.requestLoop()
@@ -89,7 +86,6 @@ class PyroServer():
         finally:
             self.server_daemon.close()
 
-    @beartype
     def run(self, nonblocking: bool = False):
         self.init_server()
         if nonblocking:
@@ -100,7 +96,6 @@ class PyroServer():
             self.log.warning(f"{self.server_name}: Running {self.server_name} server...")
             self._request_loop()
 
-    @beartype
     def close(self, timeout: Union[float, int] = 5.) -> bool:
         self.log.warning(f"Closing server ({self.server_name})... (Timeout: {timeout} sec)")
         init_time = time.time()

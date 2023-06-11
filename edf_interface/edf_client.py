@@ -6,13 +6,9 @@ import torch
 
 from edf_interface.pyro import get_service_proxy
 from edf_interface.data import SE3, PointCloud, TargetPoseDemo, DemoSequence
-from edf_interface.env_server import EnvService
-from edf_interface.agent_server import AgentService
 
 @beartype
 class EdfClient():
-    env_service: EnvService
-    agent_service: AgentService
     def __init__(self, env_server_name: str = 'env',
                  agent_sever_name: str = 'agent'):
         self.env_service = get_service_proxy(env_server_name)
