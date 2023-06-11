@@ -23,16 +23,20 @@ class EnvService():
     def __init__(self): ...
 
     @expose
-    def get_current_poses(self) -> SE3: ...
+    def get_current_poses(self) -> SE3: 
+        <YOUR CODE HERE>
 
     @expose
-    def observe_scene(self) -> PointCloud: ...
+    def observe_scene(self) -> PointCloud: 
+        <YOUR CODE HERE>
 
     @expose
-    def observe_grasp(self) -> PointCloud: ...
+    def observe_grasp(self) -> PointCloud: 
+        <YOUR CODE HERE>
 
     @expose
-    def move_se3(self, target_poses: SE3) -> bool: ...
+    def move_se3(self, target_poses: SE3) -> bool: 
+        <YOUR CODE HERE>
 
 service = EnvService()
 server = PyroServer(server_name='env', init_nameserver=True)
@@ -55,7 +59,8 @@ class AgentService():
     def infer_target_poses(self, scene_pcd: PointCloud, 
                            task_name: str,
                            grasp_pcd: PointCloud,
-                           current_poses: SE3) -> SE3: ...
+                           current_poses: SE3) -> SE3: 
+        <YOUR CODE HERE>
 
 service = AgentService()
 server = PyroServer(server_name='agent', init_nameserver=False)
@@ -66,17 +71,17 @@ server.close()
 ```
 
 ## Client Example
+Methods are only for type hinting. You do not have to write the codes.
 ```python
 from edf_interface.data import SE3, PointCloud
 from edf_interface.pyro import PyroClientBase
 
-@beartype
 class ExampleClient(PyroClientBase):
     def __init__(self, env_server_name: str = 'env',
                  agent_sever_name: str = 'agent'):
         super().__init__(service_names=[env_server_name, agent_sever_name])
 
-    def get_current_poses(self, **kwargs) -> SE3: ...
+    def get_current_poses(self, **kwargs) -> SE3: ... 
     
     def observe_scene(self, **kwargs) -> PointCloud: ...
     

@@ -100,9 +100,17 @@ class PyroServer():
         self.log.warning(f"Closing server ({self.server_name})... (Timeout: {timeout} sec)")
         init_time = time.time()
         self.server_daemon.close()
-        self._loop_thread.join(timeout=timeout)
+        try:
+            self._loop_thread.join(timeout=timeout)
+        except AttributeError:
+            pass
         
-        if self._loop_thread.is_alive():
+        try:
+            is_alive = self._loop_thread.is_alive()
+        except AttributeError:
+            is_alive = False
+
+        if is_alive:
             self.log.error(f"Server ({self.server_name}) daemon loop process not cleanly closed in {time.time() - init_time} seconds.")
             return False
         else:

@@ -25,7 +25,7 @@ class NameServer():
 
     def init_nameserver(self, *args, **kwargs):
         self.nsUri, self.daemon, self.bcserver = start_ns(*args, **kwargs)
-        self._ns_thread = threading.Thread(target=self._ns_daemon_request_loop)
+        self._ns_thread = threading.Thread(target=self._ns_daemon_request_loop, daemon=True)
         self._ns_thread.start()
 
     def _ns_daemon_request_loop(self):
