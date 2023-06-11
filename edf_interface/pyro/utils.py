@@ -1,7 +1,9 @@
 import time
 from typing import Union, Optional, Callable
 import logging
+import pickle
 
+import gzip
 from beartype import beartype
 
 import Pyro5.api, Pyro5.errors, Pyro5.client
@@ -96,3 +98,48 @@ def deserialize_output(deserializer: Callable) -> Callable:
         return wrapped
     return deserialize_
 
+def pickle_serialize(x, compress: bool = False):
+    x = pickle.dumps(x)
+    if compress:
+        return gzip.compress(x)
+    else:
+        return x
+
+def pickle_deserialize(x, compressed: bool = False):
+    if compressed:
+        x = gzip.decompress(x)
+    return pickle.loads(x)
+
+def default_serializer(x):
+    return pickle_serialize(x, compress=True)
+
+def default_deserializer(x):
+    return pickle_deserialize(x, compressed=True)
+
+
+def _expose(serializer: Callable = default_serializer,
+           deserializer: Callable = default_deserializer,
+           class_method: bool = True) -> Callable:
+    def wrapped(fn: Callable):
+        return Pyro5.api.expose(
+            deserialize_input(deserializer=deserializer, class_method=class_method)(
+                serialize_output(serializer=serializer)(
+                    fn
+                )
+            )
+        )
+    return wrapped
+
+def _wrap_remote(serializer: Callable = default_serializer,
+                deserializer: Callable = default_deserializer,
+                class_method: bool = False) -> Callable:
+    def wrapped(fn: Callable):
+        return serialize_input(serializer=serializer, class_method=class_method)(
+            deserialize_output(deserializer=deserializer)(
+                fn
+            )
+        )
+    return wrapped
+
+expose = _expose()
+wrap_remote = _wrap_remote()
