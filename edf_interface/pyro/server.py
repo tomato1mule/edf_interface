@@ -13,9 +13,9 @@ class PyroServer():
     nameserver: Optional[NameServer] = None
     nameserver_proxy: Pyro5.client.Proxy = None
     _loop_thread: Optional[threading.Thread] = None
-    server_name: str
-    server_daemon: Pyro5.server.Daemon
-    uri: Pyro5.core.URI
+    server_daemon: Optional[Pyro5.server.Daemon] = None
+    uri: Optional[Pyro5.core.URI] = None
+    server_name: str    
     log: logging.Logger
 
     @beartype
@@ -40,7 +40,7 @@ class PyroServer():
 
         ############ Initialize Nameserver Proxy #############
         if init_nameserver:
-            self.log.info("Initializing nameserver")
+            self.log.warning(f"{self.server_name}: Initializing nameserver")
             self.nameserver = NameServer(init=True)
         else:
             self.nameserver = None
@@ -53,19 +53,28 @@ class PyroServer():
                 nameserver_timeout = -1 # Infinitely wait for nameserver
 
         try:
-            self.log.info("Looking for a nameserver")
+            if init_nameserver:
+                self.log.debug(f"{self.server_name}: Looking for a nameserver...")
+            else:
+                self.log.warning(f"{self.server_name}: Looking for a nameserver...")
             self.nameserver_proxy = look_for_nameserver(wait=True, timeout=nameserver_timeout) # find nameserver
+            if init_nameserver:
+                self.log.debug(f"{self.server_name}: Nameserver found!")
+            else:
+                self.log.warning(f"{self.server_name}: Nameserver found!")
+            
         except Exception as e:
             assert self.nameserver is None, f"Unknown error"
             if init_nameserver is None: # initialize new nameserver if cannot find nameserver
-                self.log.info("Cannot find a nameserver. Creating a new one.")
+                self.log.warning(f"{self.server_name}: Cannot find a nameserver. Creating a new one.")
                 self.nameserver = NameServer(init=True)
                 self.nameserver_proxy = Pyro5.api.locate_ns() # find nameserver
             else:
-                self.log.error(f"{e}")
-                raise Pyro5.errors.NamingError(f"Cannot find nameserver.")
+                self.log.error(f"{self.server_name}: {e}")
+                raise Pyro5.errors.NamingError(f"{self.server_name}: Cannot find nameserver.")
         ######################################################
 
+    def init_server(self):
         ############ Initialize Server #############
         self.server_daemon = Pyro5.server.Daemon()                           # make a Pyro daemon
         self.uri = self.server_daemon.register(self.service)                 # register the greeting maker as a Pyro object
@@ -76,18 +85,19 @@ class PyroServer():
     def _request_loop(self):
         try:
             self.server_daemon.requestLoop()
-            self.log.debug(f"Server daemon loop exit (Service: {self.server_name})")
+            self.log.debug(f"{self.server_name}: Server daemon loop exit (Service: {self.server_name})")
         finally:
             self.server_daemon.close()
 
     @beartype
     def run(self, nonblocking: bool = False):
+        self.init_server()
         if nonblocking:
-            self.log.warning(f"Running {self.server_name} server in background...")
+            self.log.warning(f"{self.server_name}: Running {self.server_name} server in background...")
             self._loop_thread = threading.Thread(target=self._request_loop)
             self._loop_thread.start()
         else:
-            self.log.warning(f"Running {self.server_name} server...")
+            self.log.warning(f"{self.server_name}: Running {self.server_name} server...")
             self._request_loop()
 
     @beartype
