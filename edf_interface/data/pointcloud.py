@@ -194,6 +194,13 @@ class PointCloud(Observation):
 
         return go.Scatter3d(**plotly_kwargs)
     
+    def plotly(self, point_size: float = 5.0, 
+               name: Optional[str] = None, 
+               opacity: Union[float, torch.Tensor] = 1.0, 
+               colors: Optional[torch.Tensor] = None, 
+               custom_data: Optional[dict] = None) -> go.Scatter3d:
+        return PointCloud.points_to_plotly(pcd=self, point_size=point_size, name=name, opacity=opacity, colors=colors, custom_data=custom_data)
+
     @staticmethod
     def show_pcd(pcd: Union[PointCloud, torch.Tensor], 
                  point_size: float = 1.0, 
@@ -203,17 +210,45 @@ class PointCloud(Observation):
                  custom_data: Optional[Dict] = None,
                  width = 1600,
                  height = 1200,
+                 ranges = None,
                  ) -> go.Figure:
+        if isinstance(pcd, PointCloud):
+            points = pcd.points
+        elif isinstance(pcd, torch.Tensor):
+            points = pcd.detach()
+        else:
+            raise ValueError(f"Unknown pcd type: {type(pcd)}")
         
+        if ranges is None:
+            assert isinstance(points, torch.Tensor)
+            assert points.ndim == 2 and points.shape[-1] == 3, f"{points.shape}"
+            min_, max_ = points.min(dim=0).values, points.max(dim=0).values
+            ranges = [[min_[0], max_[0]], [min_[1], max_[1]], [min_[2], max_[2]]]
+
         data = PointCloud.points_to_plotly(pcd=pcd, point_size=point_size, name=name, opacity=opacity, colors=colors, custom_data=custom_data)
-        fig = go.Figure(data=[data], layout=dict(width=width, height=height))
+        fig = go.Figure(data=[data], layout=dict(
+            width=width, 
+            height=height,
+            scene=dict(
+                xaxis=dict(range=ranges[0]),
+                yaxis=dict(range=ranges[1]),
+                zaxis=dict(range=ranges[2]),
+                aspectmode='cube'
+            ),
+            margin=dict(t=0, r=0, l=0, b=0),
+        ))
         return fig
     
-    def plotly(self, point_size: float = 5.0, name: Optional[str] = None, opacity: Union[float, torch.Tensor] = 1.0, colors: Optional[torch.Tensor] = None, custom_data: Optional[dict] = None) -> go.Scatter3d:
-        return PointCloud.points_to_plotly(pcd=self, point_size=point_size, name=name, opacity=opacity, colors=colors, custom_data=custom_data)
-    
-    def show(self, point_size: float = 5.0, name: Optional[str] = None, opacity: Union[float, torch.Tensor] = 1.0, colors: Optional[torch.Tensor] = None, custom_data: Optional[dict] = None, width = 700, height=700):
-        return PointCloud.show_pcd(pcd=self, point_size=point_size, name=name, opacity=opacity, colors=colors, custom_data=custom_data, width=width, height=height)
+    def show(self, 
+             point_size: float = 5.0, 
+             name: Optional[str] = None, 
+             opacity: Union[float, torch.Tensor] = 1.0, 
+             colors: Optional[torch.Tensor] = None, 
+             custom_data: Optional[dict] = None, 
+             width = 700, 
+             height=700,
+             ranges = None):
+        return PointCloud.show_pcd(pcd=self, point_size=point_size, name=name, opacity=opacity, colors=colors, custom_data=custom_data, width=width, height=height, ranges=ranges)
     
 
 
