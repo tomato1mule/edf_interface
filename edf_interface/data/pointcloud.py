@@ -212,11 +212,26 @@ class PointCloud(Observation):
                  height = 600
                  ) -> go.Figure:
         data = PointCloud.points_to_plotly(pcd=pcd, point_size=point_size, name=name, opacity=opacity, colors=colors, custom_data=custom_data)
+
+        x_min, x_max = min(data.x), max(data.x)
+        y_min, y_max = min(data.y), max(data.y)
+        z_min, z_max = min(data.z), max(data.z)
+
+        max_range = max([x_max - x_min, y_max - y_min, z_max - z_min])
+        xc, yc, zc = (x_max+x_min)/2, (y_max+y_min)/2, (z_max+z_min)/2
+        w = max_range / 2
+
         fig = go.Figure(data=[data], layout=dict(
             width=width, 
             height=height,
             margin=dict(t=0, r=0, l=0, b=0),
             autosize=False,
+            scene=dict(
+                aspectmode='cube',
+                xaxis=dict(range=[xc-w, xc+w]),
+                yaxis=dict(range=[yc-w, yc+w]),
+                zaxis=dict(range=[zc-w, zc+w])
+            )
         ))
         return fig
     
