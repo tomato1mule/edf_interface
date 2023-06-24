@@ -40,6 +40,18 @@ class PyroClientBase():
                 else:
                     self.log.warn(f"Retrying connection to server '{_service_name_debug}' @ {service._pyroUri}")
                     continue
+            except Pyro5.errors.CommunicationError:
+                time_spent = (time.time() - init_time)
+                time.sleep(1.)
+                if timeout is None:
+                    self.log.warn(f"Retrying connection to server '{_service_name_debug}' @ {service._pyroUri}")
+                    continue
+                elif  time_spent >= timeout:
+                    raise TimeoutError(f"Cannot find nameserver in {time_spent} seconds.")
+                else:
+                    self.log.warn(f"Retrying connection to server '{_service_name_debug}' @ {service._pyroUri}")
+                    continue
+                
                 
 
         for method in service._pyroMethods:
