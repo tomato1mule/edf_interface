@@ -26,6 +26,9 @@ setup(
         'beartype',
         'Pyro5==5.14',
         'plotly==5.13',
-        'pyyaml'
+        'pyyaml',
+        'dash==2.7.1',
+        'dash_vtk==0.0.9',
+        'dash_daq==0.5.0',
     ]
 )
