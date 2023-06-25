@@ -43,9 +43,11 @@ def load_demos(dir: str, annotation_file = "data.yaml") -> List[Demo]:
 class DemoDataset(torch.utils.data.Dataset):
     def __init__(self, dataset_dir: str, 
                  annotation_file: str = "data.yaml", 
-                 device: Union[str, torch.device] = 'cpu'):
+                 device: Union[str, torch.device] = 'cpu',
+                 dtype: torch.dtype = torch.float32):
         self.device = torch.device(device)  
-        self.data: List[Demo] = [demo.to(self.device) for demo in load_demos(dir = dataset_dir, annotation_file=annotation_file)]
+        self.dtype = dtype
+        self.data: List[Demo] = [demo.to(device=self.device, dtype=self.dtype) for demo in load_demos(dir = dataset_dir, annotation_file=annotation_file)]
 
     def __len__(self):
         return len(self.data)
