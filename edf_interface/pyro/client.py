@@ -32,6 +32,7 @@ class PyroClientBase():
                 break
             except Pyro5.errors.NamingError:
                 time_spent = (time.time() - init_time)
+                time.sleep(1.)
                 if timeout is None:
                     self.log.warn(f"Retrying connection to server '{_service_name_debug}' @ {service._pyroUri}")
                     continue
