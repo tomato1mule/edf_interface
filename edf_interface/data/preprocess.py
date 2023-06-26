@@ -1,8 +1,9 @@
-from typing import Union, Optional, List, Tuple, Dict, Any, Callable
+from typing import Union, Optional, List, Tuple, Dict, Any, Callable, Sequence
 from functools import partial
 
 from beartype import beartype
 import torch
+import numpy as np
 
 from edf_interface.data import DemoDataset, TargetPoseDemo, DemoSequence, SE3, PointCloud, DataAbstractBase
 from edf_interface.data.utils import units_to_str, str_to_units
@@ -119,6 +120,56 @@ def change_frame(data: Union[DataAbstractBase, Any], frame: Union[torch.Tensor, 
             raise PreprocessNonDataException(f"Unsupported primitive type: {type(data)}")
 
 
+@torch.jit.script
+def compute_inrange_mask(points: torch.Tensor, bbox: torch.Tensor) -> torch.Tensor:
+    assert points.ndim == 2 and points.shape[-1] == 3, f"{points.shape}"
+    assert bbox.shape == (3,2), f"{bbox.shape}"
+
+    # Unpack the bounding box
+    xmin, xmax = bbox[0,0], bbox[0,1]
+    ymin, ymax = bbox[1,0], bbox[1,1]
+    zmin, zmax = bbox[2,0], bbox[2,1]
+
+    # Create masks for each dimension
+    mask_x = (points[:, 0] >= xmin) & (points[:, 0] <= xmax)
+    mask_y = (points[:, 1] >= ymin) & (points[:, 1] <= ymax)
+    mask_z = (points[:, 2] >= zmin) & (points[:, 2] <= zmax)
+
+    # Combine masks
+    mask = mask_x & mask_y & mask_z
+    return mask
+
+
+@beartype
+def _crop_bbox_pcd(data: PointCloud, bbox: Union[torch.Tensor, List, Tuple, np.ndarray]):
+    if data.is_empty:
+        return data
+    else:
+        points, colors = data.points, data.colors
+
+        bbox = torch.tensor(bbox, dtype=points.dtype, device=points.device)
+        assert bbox.shape == (3,2), f"{bbox.shape}"
+        in_range_mask = compute_inrange_mask(points=points, bbox=bbox)
+
+        return data.new(points=points[in_range_mask], colors=colors[in_range_mask])
+    
+
+@beartype
+def _crop_bbox_pose_demo(data: TargetPoseDemo, bbox: Union[torch.Tensor, List, Tuple, np.ndarray]) -> TargetPoseDemo:
+    return data.new(scene_pcd=_crop_bbox_pcd(data=data.scene_pcd, bbox=bbox))
+
+@beartype
+@recursive_apply
+def crop_bbox(data: Union[DataAbstractBase, Any], bbox: Union[torch.Tensor, List, Tuple, np.ndarray]):
+    if type(data) == PointCloud:
+        return _crop_bbox_pcd(data=data, bbox=bbox)
+    if type(data) == TargetPoseDemo:
+        return _crop_bbox_pose_demo(data=data, bbox=bbox)
+    else:
+        if isinstance(data, DataAbstractBase):
+            raise PreprocessDataTypeException(f"Unsupported data type: {type(data)}")
+        else:
+            raise PreprocessNonDataException(f"Unsupported primitive type: {type(data)}")
 
 
 # def normalize_color(data, color_mean: torch.Tensor, color_std: torch.Tensor):
