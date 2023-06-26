@@ -141,30 +141,33 @@ def compute_inrange_mask(points: torch.Tensor, bbox: torch.Tensor) -> torch.Tens
 
 
 @beartype
-def _crop_bbox_pcd(data: PointCloud, bbox: Union[torch.Tensor, List, Tuple, np.ndarray]):
+def _crop_bbox_pcd(data: PointCloud, bbox: Union[torch.Tensor, List, Tuple, np.ndarray], targets: Optional[List[str]] = None):
     if data.is_empty:
         return data
-    else:
-        points, colors = data.points, data.colors
+    elif targets is not None:
+        if data.name not in targets:
+            return data    
+        
+    points, colors = data.points, data.colors
 
-        bbox = torch.tensor(bbox, dtype=points.dtype, device=points.device)
-        assert bbox.shape == (3,2), f"{bbox.shape}"
-        in_range_mask = compute_inrange_mask(points=points, bbox=bbox)
+    bbox = torch.tensor(bbox, dtype=points.dtype, device=points.device)
+    assert bbox.shape == (3,2), f"{bbox.shape}"
+    in_range_mask = compute_inrange_mask(points=points, bbox=bbox)
 
-        return data.new(points=points[in_range_mask], colors=colors[in_range_mask])
+    return data.new(points=points[in_range_mask], colors=colors[in_range_mask])
     
 
-@beartype
-def _crop_bbox_pose_demo(data: TargetPoseDemo, bbox: Union[torch.Tensor, List, Tuple, np.ndarray]) -> TargetPoseDemo:
-    return data.new(scene_pcd=_crop_bbox_pcd(data=data.scene_pcd, bbox=bbox))
+# @beartype
+# def _crop_bbox_pose_demo(data: TargetPoseDemo, bbox: Union[torch.Tensor, List, Tuple, np.ndarray], targets: Optional[List[str]] = None) -> TargetPoseDemo:
+#     return data.new(scene_pcd=_crop_bbox_pcd(data=data.scene_pcd, bbox=bbox))
 
 @beartype
 @recursive_apply
-def crop_bbox(data: Union[DataAbstractBase, Any], bbox: Union[torch.Tensor, List, Tuple, np.ndarray]):
+def crop_bbox(data: Union[DataAbstractBase, Any], bbox: Union[torch.Tensor, List, Tuple, np.ndarray], targets: Optional[List[str]] = None):
     if type(data) == PointCloud:
-        return _crop_bbox_pcd(data=data, bbox=bbox)
-    if type(data) == TargetPoseDemo:
-        return _crop_bbox_pose_demo(data=data, bbox=bbox)
+        return _crop_bbox_pcd(data=data, bbox=bbox, targets=targets)
+    # if type(data) == TargetPoseDemo:
+    #     return _crop_bbox_pose_demo(data=data, bbox=bbox, targets=targets)
     else:
         if isinstance(data, DataAbstractBase):
             raise PreprocessDataTypeException(f"Unsupported data type: {type(data)}")
