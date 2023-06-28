@@ -6,5 +6,5 @@ import Pyro5.api
 from .nameserver import NameServer
 from .server import PyroServer
 from .client import PyroClientBase
-from .utils import expose, wrap_remote
+from .utils import expose, remote
 

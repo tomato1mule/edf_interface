@@ -4,7 +4,7 @@ import logging
 from beartype import beartype
 import Pyro5.errors
 
-from edf_interface.pyro.utils import get_service_proxy, wrap_remote, PYRO_PROXY
+from edf_interface.pyro.utils import get_service_proxy, PYRO_PROXY, _wrap_pyro_remote
 
 @beartype
 class PyroClientBase():
@@ -58,6 +58,9 @@ class PyroClientBase():
                 
                 
 
-        for method in service._pyroMethods:
-            if hasattr(self, method):
-                setattr(self, method, wrap_remote(getattr(service, method)))
+        for method_name in service._pyroMethods:
+            if hasattr(self, method_name):
+                method = getattr(self, method_name)
+                if hasattr(method, '_remote_method'):
+                    if method._remote_method:
+                        setattr(self, method_name, _wrap_pyro_remote(getattr(service, method_name)))
