@@ -63,7 +63,7 @@ class PyroServer():
             if init_nameserver is None: # initialize new nameserver if cannot find nameserver
                 self.log.warning(f"{self.server_name}: Cannot find a nameserver. Creating a new one.")
                 self.init_nameserver(host=nameserver_host, port=nameserver_port)
-                self.nameserver_proxy = Pyro5.api.locate_ns() # find nameserver
+                self.nameserver_proxy = Pyro5.api.locate_ns(host=nameserver_host, port=nameserver_port) # find nameserver
             else:
                 self.log.error(f"{self.server_name}: {e}")
                 raise Pyro5.errors.NamingError(f"{self.server_name}: Cannot find nameserver.")
@@ -71,7 +71,7 @@ class PyroServer():
 
     def init_nameserver(self, host: Optional[str] = None, port: Optional[int] = None):
         self.nameserver = NameServer(init=True, host=host, port=port)
-        self.log.warning(f"{self.server_name}: Initialized nameserver @ {self.nameserver.nsUri.host}:{self.nameserver.nsUri.port}")
+        self.log.warning(f"{self.server_name}: 'Initialized nameserver @ {self.nameserver.nsUri}'")
 
 
     def register_service(self, service):
@@ -96,15 +96,15 @@ class PyroServer():
     def run(self, nonblocking: bool = False):
         self.init_server()
         if nonblocking:
-            self.log.warning(f"{self.server_name}: Running {self.server_name} server in background...")
+            self.log.warning(f"{self.server_name}: Running '{self.server_name}' server in background...")
             self._loop_thread = threading.Thread(target=self._request_loop)
             self._loop_thread.start()
         else:
-            self.log.warning(f"{self.server_name}: Running {self.server_name} server...")
+            self.log.warning(f"{self.server_name}: Running '{self.server_name}' server...")
             self._request_loop()
 
     def close(self, timeout: Union[float, int] = 5.) -> bool:
-        self.log.warning(f"Closing server ({self.server_name})... (Timeout: {timeout} sec)")
+        self.log.warning(f"Closing server '{self.server_name}'... (Timeout: {timeout} sec)")
         init_time = time.time()
         self.server_daemon.close()
         try:
@@ -118,9 +118,9 @@ class PyroServer():
             is_alive = False
 
         if is_alive:
-            self.log.error(f"Server ({self.server_name}) daemon loop process not cleanly closed in {time.time() - init_time} seconds.")
+            self.log.error(f"Server '{self.server_name}' daemon loop process not cleanly closed in {time.time() - init_time} seconds.")
             return False
         else:
             self.server_daemon.close()
-            self.log.warning(f"Server ({self.server_name}) daemon loop process cleanly closed in {time.time() - init_time} seconds.")
+            self.log.warning(f"Server '{self.server_name}' daemon loop process cleanly closed in {time.time() - init_time} seconds.")
             return True
