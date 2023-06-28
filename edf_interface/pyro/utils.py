@@ -2,6 +2,7 @@ import time
 from typing import Union, Optional, Callable
 import logging
 import pickle
+import inspect
 
 import gzip
 from beartype import beartype
@@ -46,45 +47,41 @@ def get_service_proxy(name: str) -> Pyro5.api.Proxy:
 
     return proxy
 
-def serialize_input(serializer: Callable, class_method: bool) -> Callable:
+def serialize_input(serializer: Callable) -> Callable:
     def serialize_(fn):
-        if class_method:
-            def wrapped(self, *args, **kwargs):
-                args = [serializer(arg) for arg in args]
-                kwargs = {key: serializer(val) for key, val in kwargs.items()}
-                out = fn(self, *args, **kwargs)
-                return out
-        else:
-            def wrapped(*args, **kwargs):
-                args = [serializer(arg) for arg in args]
-                kwargs = {key: serializer(val) for key, val in kwargs.items()}
-                out = fn(*args, **kwargs)
-                return out
+        def wrapped(*args, **kwargs):
+            args = [serializer(arg) for arg in args]
+            kwargs = {key: serializer(val) for key, val in kwargs.items()}
+            out = fn(*args, **kwargs)
+            return out
         return wrapped
     return serialize_
 
 def serialize_output(serializer: Callable) -> Callable:
     def serialize_(fn):
-        def wrapped(*args, **kwargs):
-            out = fn(*args, **kwargs)
-            return serializer(out)
+        first_param = next(iter(inspect.signature(fn).parameters.keys()), None)
+        if first_param == 'self':
+            def wrapped(self, *args, **kwargs):
+                out = fn(self, *args, **kwargs)
+                return serializer(out)
+        else:
+            def wrapped(*args, **kwargs):
+                out = fn(*args, **kwargs)
+                return serializer(out)
         return wrapped
     return serialize_
 
-def deserialize_input(deserializer: Callable, class_method: bool) -> Callable:
+def deserialize_input(deserializer: Callable) -> Callable:
     def deserialize_(fn):
-        if class_method:
+        first_param = next(iter(inspect.signature(fn).parameters.keys()), None)
+        if first_param == 'self':
             def wrapped(self, *args, **kwargs):
-                if class_method:
-                    args = args [1:]
                 args = [deserializer(arg) for arg in args]
                 kwargs = {key: deserializer(val) for key, val in kwargs.items()}
                 out = fn(self, *args, **kwargs)
                 return out
         else:
             def wrapped(*args, **kwargs):
-                if class_method:
-                    args = args [1:]
                 args = [deserializer(arg) for arg in args]
                 kwargs = {key: deserializer(val) for key, val in kwargs.items()}
                 out = fn(*args, **kwargs)
@@ -120,11 +117,10 @@ def default_deserializer(x):
 
 
 def _expose(serializer: Callable = default_serializer,
-           deserializer: Callable = default_deserializer,
-           class_method: bool = True) -> Callable:
+           deserializer: Callable = default_deserializer) -> Callable:
     def wrapped(fn: Callable):
         return Pyro5.api.expose(
-            deserialize_input(deserializer=deserializer, class_method=class_method)(
+            deserialize_input(deserializer=deserializer)(
                 serialize_output(serializer=serializer)(
                     fn
                 )
@@ -136,7 +132,7 @@ def _wrap_remote(serializer: Callable = default_serializer,
                 deserializer: Callable = default_deserializer,
                 class_method: bool = False) -> Callable:
     def wrapped(fn: Callable):
-        return serialize_input(serializer=serializer, class_method=class_method)(
+        return serialize_input(serializer=serializer)(
             deserialize_output(deserializer=deserializer)(
                 fn
             )
