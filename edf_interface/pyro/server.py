@@ -71,7 +71,7 @@ class PyroServer():
 
     def init_nameserver(self, host: Optional[str] = None, port: Optional[int] = None):
         self.nameserver = NameServer(init=True, host=host, port=port)
-        self.log.warning(f"{self.server_name}: 'Initialized nameserver @ {self.nameserver.nsUri}'")
+        self.log.warning(f"{self.server_name}: Initialized nameserver @ \"{self.nameserver.nsUri}\"")
 
 
     def register_service(self, service):
