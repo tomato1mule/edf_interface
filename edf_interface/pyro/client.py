@@ -3,6 +3,8 @@ from typing import List, Iterable, Optional, Union
 import logging
 from beartype import beartype
 import Pyro5.errors
+import inspect
+import functools
 
 from edf_interface.pyro.utils import get_service_proxy, PYRO_PROXY, _wrap_pyro_remote
 
@@ -61,6 +63,8 @@ class PyroClientBase():
         for method_name in service._pyroMethods:
             if hasattr(self, method_name):
                 method = getattr(self, method_name)
-                if hasattr(method, '_remote_method'):
-                    if method._remote_method:
-                        setattr(self, method_name, _wrap_pyro_remote(getattr(service, method_name)))
+                if hasattr(method, '_remote_method_registered'):
+                    if not method._remote_method_registered:
+                        default_values = {name: param.default for name, param in inspect.signature(method).parameters.items() if param.default is not param.empty}
+                        method = functools.partial(_wrap_pyro_remote(getattr(service, method_name)), **default_values)
+                        setattr(self, method_name, method)

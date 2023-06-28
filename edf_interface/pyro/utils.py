@@ -139,11 +139,8 @@ def _make_pyro_remote_wrapper(serializer: Callable = default_serializer,
     return wrapped
 
 def remote(fn: Callable):
-    name = fn.__name__
-    def wrapper(*args, **kwargs):
-        raise NotImplementedError(f"Cannot Find remote server with method '{name}'.")
-    wrapper._remote_method = True
-    return wrapper
+    fn._remote_method_registered = False
+    return fn
 
 expose = _expose()
 _wrap_pyro_remote = _make_pyro_remote_wrapper()
