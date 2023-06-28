@@ -3,16 +3,21 @@ from typing import List, Iterable, Optional, Union
 import logging
 from beartype import beartype
 import Pyro5.errors
+import inspect
+import functools
 
-from edf_interface.pyro.utils import get_service_proxy, wrap_remote, PYRO_PROXY
+from edf_interface.pyro.utils import get_service_proxy, PYRO_PROXY, _wrap_pyro_remote
 
 @beartype
 class PyroClientBase():
     services: List[PYRO_PROXY] = []
     log: logging.Logger
 
-    def __init__(self, service_names: Iterable[str], timeout: Optional[Union[int, float]] = None):
+    def __init__(self, service_names: Union[Iterable[str], str], timeout: Optional[Union[int, float]] = None):
         self.log = logging.getLogger("PyroClientBase")
+        if isinstance(service_names, str):
+            service_names = [service_names]
+            
         for name in service_names:
             service = get_service_proxy(name)
             self._register_remote_methods(service, timeout, _service_name_debug=name)
@@ -55,6 +60,11 @@ class PyroClientBase():
                 
                 
 
-        for method in service._pyroMethods:
-            if hasattr(self, method):
-                setattr(self, method, wrap_remote(getattr(service, method)))
+        for method_name in service._pyroMethods:
+            if hasattr(self, method_name):
+                method = getattr(self, method_name)
+                if hasattr(method, '_remote_method_registered'):
+                    if not method._remote_method_registered:
+                        default_values = {name: param.default for name, param in inspect.signature(method).parameters.items() if param.default is not param.empty}
+                        method = functools.partial(_wrap_pyro_remote(getattr(service, method_name)), **default_values)
+                        setattr(self, method_name, method)
