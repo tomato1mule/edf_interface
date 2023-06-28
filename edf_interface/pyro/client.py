@@ -11,8 +11,11 @@ class PyroClientBase():
     services: List[PYRO_PROXY] = []
     log: logging.Logger
 
-    def __init__(self, service_names: Iterable[str], timeout: Optional[Union[int, float]] = None):
+    def __init__(self, service_names: Union[Iterable[str], str], timeout: Optional[Union[int, float]] = None):
         self.log = logging.getLogger("PyroClientBase")
+        if isinstance(service_names, str):
+            service_names = [service_names]
+            
         for name in service_names:
             service = get_service_proxy(name)
             self._register_remote_methods(service, timeout, _service_name_debug=name)

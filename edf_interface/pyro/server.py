@@ -24,7 +24,9 @@ class PyroServer():
 
     def __init__(self, server_name: str, 
                  init_nameserver: Optional[bool] = None,
-                 nameserver_timeout: Union[float, int, str] = 'default'):
+                 nameserver_timeout: Union[float, int, str] = 'default',
+                 nameserver_host: Optional[str] = None, nameserver_port: Optional[int] = None
+                 ):
 
         # assert service._pyroExposed is True # use '@Pyro5.api.expose' decorator on the class.
         self.service = None
@@ -34,7 +36,7 @@ class PyroServer():
         ############ Initialize Nameserver Proxy #############
         if init_nameserver:
             self.log.warning(f"{self.server_name}: Initializing nameserver")
-            self.nameserver = NameServer(init=True)
+            self.init_nameserver(host=nameserver_host, port=nameserver_port)
         else:
             self.nameserver = None
 
@@ -60,12 +62,17 @@ class PyroServer():
             assert self.nameserver is None, f"Unknown error"
             if init_nameserver is None: # initialize new nameserver if cannot find nameserver
                 self.log.warning(f"{self.server_name}: Cannot find a nameserver. Creating a new one.")
-                self.nameserver = NameServer(init=True)
+                self.init_nameserver(host=nameserver_host, port=nameserver_port)
                 self.nameserver_proxy = Pyro5.api.locate_ns() # find nameserver
             else:
                 self.log.error(f"{self.server_name}: {e}")
                 raise Pyro5.errors.NamingError(f"{self.server_name}: Cannot find nameserver.")
         ######################################################
+
+    def init_nameserver(self, host: Optional[str] = None, port: Optional[int] = None):
+        self.nameserver = NameServer(init=True, host=host, port=port)
+        self.log.warning(f"{self.server_name}: Initialized nameserver @ {self.nameserver.nsUri.host}:{self.nameserver.nsUri.port}")
+
 
     def register_service(self, service):
         self.service = service

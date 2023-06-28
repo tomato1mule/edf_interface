@@ -17,14 +17,15 @@ class NameServer():
 
 
     @beartype
-    def __init__(self, init=True):
+    def __init__(self, init=True, host: Optional[str] = None, port: Optional[int] = None):
         self.log = logging.getLogger("NameServer")
         if init:
-            self.init_nameserver()
+            self.init_nameserver(host=host, port=port)
         
 
-    def init_nameserver(self, *args, **kwargs):
-        self.nsUri, self.daemon, self.bcserver = start_ns(*args, **kwargs)
+    def init_nameserver(self, host=None, port=None, enableBroadcast=True, bchost=None, bcport=None,
+                        unixsocket=None, nathost=None, natport=None, storage=None):
+        self.nsUri, self.daemon, self.bcserver = start_ns(host=host, port=port, enableBroadcast=enableBroadcast, bchost=bchost, bcport=bcport, unixsocket=unixsocket, nathost=nathost, natport=natport, storage=storage)
         self._ns_thread = threading.Thread(target=self._ns_daemon_request_loop, daemon=True)
         self._ns_thread.start()
 
