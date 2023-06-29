@@ -7,8 +7,52 @@ import numpy as np
 import torch
 
 
-from .transforms import quaternion_apply, quaternion_multiply, axis_angle_to_quaternion, quaternion_invert, normalize_quaternion
+from .transforms import quaternion_apply, quaternion_multiply, axis_angle_to_quaternion, quaternion_invert, normalize_quaternion, quaternion_to_matrix, se3_log_map, se3_exp_map, matrix_to_quaternion
 from .base import DataAbstractBase, Action, Observation
+
+@torch.jit.script
+def _multiply(T1: torch.Tensor, T2: torch.Tensor) -> torch.Tensor:
+    q, x = T2[...,:4], T2[...,4:]
+    q = normalize_quaternion(q)
+
+    assert len(T1) == len(q) == len(x) or len(T1) == 1 or len(q) == len(x) == 1
+    x = quaternion_apply(T1[...,:4], x) + T1[...,4:]
+    q = quaternion_multiply(T1[...,:4], q)
+    q = normalize_quaternion(q)
+
+    return torch.cat([q,x], dim=-1)
+
+@torch.jit.script
+def _inv(T: torch.Tensor) -> torch.Tensor:
+    q, x = T[...,:4], T[...,4:]
+    q_inv = quaternion_invert(normalize_quaternion(q))
+    q_inv = normalize_quaternion(q_inv)
+    x_inv = -quaternion_apply(q_inv, x)
+    return torch.cat([q_inv, x_inv], dim=-1)
+
+@torch.jit.script
+def _log_map(poses: torch.Tensor) -> torch.Tensor:
+    """
+    returns Lie algebra for (Rx, Ry, Rz, Vx, Vy, Vz)
+    """
+    assert poses.shape[-1] == 7, f"{poses.shape}"
+    R = quaternion_to_matrix(poses[..., :4])
+    x = poses[..., 4:].unsqueeze(-1)
+    T = torch.cat([R,x],dim=-1)
+    T = torch.cat([T, torch.cat([torch.zeros_like(T[...,:1,:3]), torch.ones_like(T[...,:1,3:])], dim=-1)], dim=-2)
+
+    L = se3_log_map(T) # (Vx, Vy, Vz, Rx, Ry, Rz)
+    return torch.cat([L[...,3:], L[...,:3]], dim=-1) # (Rx, Ry, Rz, Vx, Vy, Vz)
+
+@torch.jit.script
+def _exp_map(lie: torch.Tensor) -> torch.Tensor:
+    assert lie.shape[-1] == 6, f"{lie.shape}"
+    lie = torch.cat([lie[...,3:], lie[...,:3]], dim=-1) # (Rx, Ry, Rz, Vx, Vy, Vz) -> (Vx, Vy, Vz, Rx, Ry, Rz)
+    T = se3_exp_map(lie) # (..., 4, 4)
+    q = matrix_to_quaternion(T[...,:3, :3]) # (n, 4)
+    x = T[...,:3,-1] # (n, 3)
+    T = torch.cat([q,x], dim=-1) # (n, 7)
+    return T
 
 @beartype
 class SE3(Action, Observation):
@@ -42,7 +86,7 @@ class SE3(Action, Observation):
         if not torch.allclose(self.poses[...,:4].detach().norm(dim=-1,keepdim=True), torch.tensor([1.0], device=self.device, dtype=self.poses.dtype), rtol=0, atol=0.03):
             warnings.warn("SE3.__init__(): Input quaternion is not normalized")
 
-        self.inv = self._inv
+        self.inv = self.__inv
 
     @staticmethod
     def from_orn_and_pos(orns: torch.Tensor, positions: torch.Tensor, versor_last_input: bool = False) -> SE3:
@@ -65,29 +109,24 @@ class SE3(Action, Observation):
 
     def __len__(self) -> int:
         return len(self.poses)
-    
+       
     @staticmethod
     def multiply(*Ts) -> SE3:
-        T: SE3 = Ts[-1]
-        q,x = T.poses[...,:4], T.poses[...,4:]
-        q = q / q.norm(dim=-1, keepdim=True)
+        Ts = [T.poses if isinstance(T, SE3) else T for T in Ts]
+
+        T2: torch.Tensor = Ts[-1]
 
         for T in Ts[-2::-1]:
-            assert len(T.poses) == len(q) == len(x) or len(T.poses) == 1 or len(q) == len(x) == 1
-            x = quaternion_apply(T.poses[...,:4], x) + T.poses[...,4:]
-            q = quaternion_multiply(T.poses[...,:4], q)
-            q = q / q.norm(dim=-1, keepdim=True)
-        return SE3(poses=torch.cat([q,x], dim=-1), renormalize=False)
+            T2 = _multiply(T, T2)
+        return SE3(poses=T2, renormalize=False)
     
     @staticmethod
-    def inv(T) -> SE3:
-        q, x = T.poses[...,:4], T.poses[...,4:]
-        q_inv = quaternion_invert(q / q.norm(dim=-1, keepdim=True))
-        q_inv = q_inv / q_inv.norm(dim=-1, keepdim=True)
-        x_inv = -quaternion_apply(q_inv, x)
-        return SE3(poses=torch.cat([q_inv, x_inv], dim=-1), renormalize=False)
+    def inv(T: Union[SE3, torch.Tensor]):
+        if isinstance(T, SE3):
+            T = T.poses
+        return SE3(poses=_inv(T), renormalize=False)
     
-    def _inv(self) -> SE3:
+    def __inv(self) -> SE3:
         return SE3.inv(self)
     
     def __mul__(self, other) -> SE3:
