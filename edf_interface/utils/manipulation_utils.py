@@ -40,11 +40,6 @@ def compute_pre_pick_trajectories(pick_poses: data.SE3,
     assert trajectories.ndim == 3 and trajectories.shape[:-2] == pick_poses.poses.shape[:-1]
     return [pick_poses.new(poses=traj) for traj in trajectories]
 
-
-
-
-    
-
 @beartype
 def compute_post_pick(pick_poses: data.SE3,
                       lift_len: float) -> data.SE3:
