@@ -51,17 +51,31 @@ def o3d_to_numpy(pcd) -> Tuple[np.ndarray, np.ndarray]:
 
     return points, colors
 
-def transform_points(points: torch.Tensor, Ts: torch.Tensor) -> torch.Tensor:
+@torch.jit.script
+def transform_points(points: torch.Tensor, Ts: torch.Tensor, batched_pcd: bool = False) -> torch.Tensor:
     ndim = Ts.ndim
-    assert ndim <= 2 and Ts.shape[-1] == 7
-    assert points.ndim == 2 and points.shape[-1] == 3, f"Points must have shape (N,3), but shape {points.shape} is given."
+    assert ndim <= 2 and Ts.shape[-1] == 7, f"{Ts.shape}"
+    if batched_pcd:
+        assert points.ndim == 3 and points.shape[-1] == 3, f"Points must have shape (nBatch, Npoints, 3), but shape {points.shape} is given."
+        assert Ts.ndim == 2 and len(Ts) == len(points), f"{Ts.shape} != (nBatch={len(points)}, 7)"
+    else:
+        assert points.ndim == 2 and points.shape[-1] == 3, f"Points must have shape (N,3), but shape {points.shape} is given."
     assert points.device == Ts.device
     
     q, t = Ts[..., :4], Ts[..., 4:]
+
     N_points: int = points.shape[-2]
     if Ts.ndim == 2:
-        N_transforms: int = len(Ts)
-        points = quaternion_apply(quaternion=q.unsqueeze(-2).expand([-1,N_points,-1]), point=points.unsqueeze(-3).expand([N_transforms,-1,-1])) + t.unsqueeze(-2) # (N_transforms, N_points, 3)
+        if batched_pcd:
+            points = quaternion_apply(
+                quaternion=q.unsqueeze(-2), # (N_batch, 1, 4)
+                point=points  # (N_batch, N_points, 3)
+            ) + t.unsqueeze(-2) # (N_batch, N_points, 3)
+        else:
+            points = quaternion_apply(
+                quaternion=q.unsqueeze(-2).expand([-1,N_points,-1]), 
+                point=points.unsqueeze(-3).expand([len(Ts),-1,-1])
+            ) + t.unsqueeze(-2) # (N_transforms, N_points, 3)
     else:
         points = quaternion_apply(quaternion=q.unsqueeze(-2).expand([N_points,-1]), point=points) + t # (N_points, 3)
     return points
