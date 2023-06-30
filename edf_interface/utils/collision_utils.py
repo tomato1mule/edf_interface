@@ -34,12 +34,14 @@ def check_pcd_collision(x: Union[PointCloud, torch.Tensor], y: Union[PointCloud,
     return _check_pcd_collision(x=convert_to_tensor(x), y=convert_to_tensor(y), r = r)
 
 @torch.jit.script
-def _pcd_energy_radius(x: torch.Tensor, 
+def _pcd_energy(x: torch.Tensor, 
                        y: torch.Tensor, 
                        cutoff_r: float,
                        max_num_neighbor: int = 100,
                        eps: float = 0.001,
-                       compute_grad: bool = True) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+                       compute_grad: bool = True,
+                       cluster_method: str = 'knn',
+                       ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
     assert x.ndim == 2 and x.shape[-1] == 3, f"{x.shape}" # (nX, 3)
     if y.ndim == 2:
         y = y.unsqueeze(0)
@@ -62,12 +64,23 @@ def _pcd_energy_radius(x: torch.Tensor,
         rot_y, trans_y, dR, rot_vec = torch.empty(0), torch.empty(0), torch.empty(0), torch.empty(0), 
     
     y = y.view(-1,3)
-    edges = torch_cluster.radius(
-        x=x.detach(), 
-        y=y.detach(), 
-        r = cutoff_r, 
-        max_num_neighbors=max_num_neighbor
-    )
+
+    if cluster_method == 'radius':
+        edges = torch_cluster.radius(
+            x=x.detach(), 
+            y=y.detach(), 
+            r = cutoff_r, 
+            max_num_neighbors=max_num_neighbor
+        )
+    elif cluster_method == 'knn':
+        edges = torch_cluster.knn(
+            x=x.detach(), 
+            y=y.detach(), 
+            k=max_num_neighbor,
+        )
+    else:
+        raise ValueError(f"Unknown cluster method '{cluster_method}'")
+    
     edge_y_idx, edge_x_idx = edges[0], edges[1]
 
     if len(edge_y_idx) == 0:
@@ -86,8 +99,8 @@ def _pcd_energy_radius(x: torch.Tensor,
     else:
         return energy.detach(), None
     
-def pcd_energy(x: Union[PointCloud, torch.Tensor], y: Union[PointCloud, torch.Tensor], cutoff_r: float, grad: bool =True) -> Tuple[torch.Tensor, Optional[torch.Tensor], int]:
-    return _pcd_energy(x=convert_to_tensor(x), y=convert_to_tensor(y), cutoff_r=cutoff_r, grad=grad)
+# def pcd_energy(x: Union[PointCloud, torch.Tensor], y: Union[PointCloud, torch.Tensor], cutoff_r: float, grad: bool =True) -> Tuple[torch.Tensor, Optional[torch.Tensor], int]:
+#     return _pcd_energy(x=convert_to_tensor(x), y=convert_to_tensor(y), cutoff_r=cutoff_r, grad=grad)
     
 def _optimize_pcd_collision_once(x: Union[PointCloud, torch.Tensor], y: Union[PointCloud, torch.Tensor], cutoff_r: float, dt: float, eps: float) -> Tuple[Union[PointCloud, torch.Tensor], SE3, bool]:
     if isinstance(x, PointCloud):
