@@ -1,13 +1,16 @@
-from typing import Union, Tuple, Optional
+from typing import Union, Tuple, Optional, List
+from beartype import beartype
 import torch
 import torch.nn.functional as F
 import torch_cluster
 import torch_scatter
 from edf_interface.data import transforms, se3, pcd_utils, PointCloud, SE3
 
-def convert_to_tensor(x: Union[PointCloud, torch.Tensor]) -> torch.Tensor:
+def convert_to_tensor(x: Union[PointCloud, SE3, torch.Tensor]) -> torch.Tensor:
     if isinstance(x, PointCloud):
         return x.points
+    elif isinstance(x, SE3):
+        return x.poses
     else:
         assert isinstance(x, torch.Tensor)
         return x
@@ -127,7 +130,7 @@ def _se3_adjoint_lie_grad(Ts: torch.Tensor, grad: torch.Tensor) -> torch.Tensor:
     assert Ts.shape[:1] == grad.shape[:1], f"{Ts.shape}, {grad.shape}"
 
     qinv = transforms.quaternion_invert(Ts[..., :4]) # (..., 4)
-    adj_grad_R = grad[..., :3] + torch.cross(Ts[..., 4:], grad[..., 3:]) # (..., 3)
+    adj_grad_R = grad[..., :3] - torch.cross(Ts[..., 4:], grad[..., 3:]) # (..., 3)
     adj_grad_R = transforms.quaternion_apply(qinv, adj_grad_R) # (..., 3)
     adj_grad_v = transforms.quaternion_apply(qinv, grad[..., 3:]) # (..., 3)
     
@@ -164,8 +167,8 @@ def _optimize_pcd_collision_once(x: torch.Tensor,
     grad = _se3_adjoint_lie_grad(Ts, grad) # (nPose, 6)
 
     # disp = -grad / (grad.norm() + eps) * dt
-    grad = grad * (cutoff_r**2)
-    disp = -grad * dt
+    grad = grad * (torch.tensor([1., 1., 1., cutoff_r, cutoff_r, cutoff_r], device=grad.device, dtype=grad.dtype))
+    disp = -grad * dt * cutoff_r
     disp_pose = se3._exp_map(disp) # (n_poses, 7)
 
     new_pose = se3._multiply(Ts, disp_pose)
@@ -173,21 +176,79 @@ def _optimize_pcd_collision_once(x: torch.Tensor,
     # done = torch.isclose(energy, torch.zeros_like(energy))
 
     return new_pose, energy
-    
-def optimize_pcd_collision(x: Union[PointCloud, torch.Tensor], y: Union[PointCloud, torch.Tensor], cutoff_r: float, dt: float, eps: float, iters: int, rel_pose: Optional[SE3] = None) -> Tuple[Union[PointCloud, torch.Tensor], SE3]:
-    if rel_pose is not None:
-        if isinstance(y, PointCloud):
-            y = y.transformed(Ts=rel_pose)[0]
-        else:
-            raise NotImplementedError
 
-    Ts = []
-    for _ in range(iters):
-        y, T, done = _optimize_pcd_collision_once(x=x, y=y, cutoff_r=cutoff_r, dt=dt, eps=eps)
-        Ts.append(T)
-        if done:
-            break
+@torch.jit.script
+def _optimize_pcd_collision_trajectory(x: torch.Tensor, 
+                                       y: torch.Tensor, 
+                                       Ts: torch.Tensor, 
+                                       n_steps: int,
+                                       dt: float,
+                                       cutoff_r: float,
+                                       max_num_neighbors: int = 100,
+                                       eps: float = 0.01,
+                                       cluster_method: str = 'knn') -> torch.Tensor:
+    """_summary_
 
-    if rel_pose is not None:
-        Ts.append(rel_pose)
-    return y, SE3.multiply(*Ts)
+    Args:
+        x (torch.Tensor): (nX, 3)
+        y (torch.Tensor): (nPose, nY, 3) or (nY, 3)
+        Ts (torch.Tensor): (nPose, 7)
+        n_steps (int): _description_
+        dt (float): _description_
+        cutoff_r (float): _description_
+        max_num_neighbors (int, optional): _description_. Defaults to 100.
+        eps (float, optional): _description_. Defaults to 0.01.
+        cluster_method (str, optional): _description_. Defaults to 'knn'.
+
+    Returns:
+        trajectories: _description_
+    """
+    assert n_steps >= 1
+    assert Ts.ndim == 2 and Ts.shape[-1] == 7, f"{Ts.shape}"
+    n_poses = len(Ts)
+    assert x.ndim == 2 and x.shape[-1] == 3, f"{x.shape}"
+    assert (y.ndim == 2 or y.ndim == 3) and y.shape[-1] == 3, f"{y.shape}"
+    if y.ndim == 2:
+        y = y.expand(n_poses, -1, 3)
+
+    trajectories = [Ts]
+    for i in range(n_steps-1):
+        new_pose, energy = _optimize_pcd_collision_once(x=x, y=y, Ts=trajectories[-1], dt=dt, cutoff_r=cutoff_r, max_num_neighbors=max_num_neighbors, eps=eps, cluster_method=cluster_method)
+        trajectories.append(new_pose)
+    trajectories = torch.stack(trajectories, dim=0) # (n_steps, n_poses, 7)
+    trajectories = trajectories.movedim(0, -2) # (n_poses, n_steps, 7)
+
+    return trajectories
+
+@beartype
+def optimize_pcd_collision_trajectory(x: Union[PointCloud, torch.Tensor], 
+                                      y: Union[PointCloud, torch.Tensor], 
+                                      Ts: Union[SE3, torch.Tensor], 
+                                      n_steps: int,
+                                      dt: float,
+                                      cutoff_r: float,
+                                      max_num_neighbors: int = 100,
+                                      eps: float = 0.01,
+                                      cluster_method: str = 'knn') -> List[SE3]:
+    """_summary_
+
+    Args:
+        x (Union[PointCloud, torch.Tensor]): (nX, 3)
+        y (Union[PointCloud, torch.Tensor]): (nPose, nY, 3) or (nY, 3)
+        Ts (Union[SE3, torch.Tensor]): (nPose, 7)
+        n_steps (int): _description_
+        dt (float): _description_
+        cutoff_r (float): _description_
+        max_num_neighbors (int, optional): _description_. Defaults to 100.
+        eps (float, optional): _description_. Defaults to 0.01.
+        cluster_method (str, optional): _description_. Defaults to 'knn'.
+
+    Returns:
+        trajectories: _description_
+    """
+    x = convert_to_tensor(x)
+    y = convert_to_tensor(y)
+    Ts = convert_to_tensor(Ts)
+    trajectories: torch.Tensor = _optimize_pcd_collision_trajectory(x=x, y=y, Ts=Ts, n_steps=n_steps, dt=dt, cutoff_r=cutoff_r, max_num_neighbors=max_num_neighbors, eps=eps, cluster_method=cluster_method)
+    trajectories: List[SE3] = [Ts.new(poses=traj) for traj in trajectories] # List of n_poses * (n_steps, 7) poses
+    return trajectories
