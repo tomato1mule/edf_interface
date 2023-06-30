@@ -86,7 +86,7 @@ class SE3(Action, Observation):
         if not torch.allclose(self.poses[...,:4].detach().norm(dim=-1,keepdim=True), torch.tensor([1.0], device=self.device, dtype=self.poses.dtype), rtol=0, atol=0.03):
             warnings.warn("SE3.__init__(): Input quaternion is not normalized")
 
-        self.inv = self.__inv
+        self.inv = self._i_n_v
 
     @staticmethod
     def from_orn_and_pos(orns: torch.Tensor, positions: torch.Tensor, versor_last_input: bool = False) -> SE3:
@@ -126,7 +126,7 @@ class SE3(Action, Observation):
             T = T.poses
         return SE3(poses=_inv(T), renormalize=False)
     
-    def __inv(self) -> SE3:
+    def _i_n_v(self) -> SE3:
         return SE3.inv(self)
     
     def __mul__(self, other) -> SE3:

@@ -68,11 +68,14 @@ def compute_pre_pick_trajectories(pick_poses: data.SE3,
 
 @beartype
 def compute_post_pick_trajectories(pick_poses: data.SE3,
-                                   lift_len: float, n_steps: int) -> List[data.SE3]:
+                                   lift_len: float, n_steps: int,
+                                   include_target_pose: bool = False) -> List[data.SE3]:
     post_pick_poses = data.SE3(pick_poses.poses + torch.tensor([0., 0., 0., 0., 0., 0., lift_len], device=pick_poses.device))
     trajectories = _interpolate_trajectory(init_poses=pick_poses.poses, final_poses=post_pick_poses.poses, n_steps=n_steps)
 
-    return [pick_poses.new(poses=traj) for traj in trajectories]
+    return [pick_poses.new(
+        poses = traj if include_target_pose else traj[1:]
+    ) for traj in trajectories]
 
 
 @beartype
@@ -91,7 +94,8 @@ def compute_pre_place_trajectories(place_poses: data.SE3,
 def compute_post_place_trajectories(place_poses: data.SE3, 
                                     pre_pick_trajectory: data.SE3, 
                                     n_steps: int,
-                                    extrapolate_post_place: Optional[float] = None) -> List[data.SE3]:
+                                    extrapolate_post_place: Optional[float] = None,
+                                    include_target_pose: bool = False) -> List[data.SE3]:
     pre_pick_pose, pick_pose = pre_pick_trajectory[0], pre_pick_trajectory[-1]
 
     assert len(pick_pose) == len(pre_pick_pose) == 1
@@ -113,4 +117,6 @@ def compute_post_place_trajectories(place_poses: data.SE3,
             n_steps=n_steps,
         )
 
-    return [place_poses.new(poses=traj) for traj in trajectories]
+    return [place_poses.new(
+        poses = traj if include_target_pose else traj[1:]
+    ) for traj in trajectories]
