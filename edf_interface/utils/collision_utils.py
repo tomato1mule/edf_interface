@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 import torch_cluster
 import torch_scatter
-from edf_interface.data import PointCloud, SE3
+from edf_interface.data import transforms, se3, pcd_utils, PointCloud, SE3
 
 def convert_to_tensor(x: Union[PointCloud, torch.Tensor]) -> torch.Tensor:
     if isinstance(x, PointCloud):
@@ -101,31 +101,78 @@ def _pcd_energy(x: torch.Tensor,
     
 # def pcd_energy(x: Union[PointCloud, torch.Tensor], y: Union[PointCloud, torch.Tensor], cutoff_r: float, grad: bool =True) -> Tuple[torch.Tensor, Optional[torch.Tensor], int]:
 #     return _pcd_energy(x=convert_to_tensor(x), y=convert_to_tensor(y), cutoff_r=cutoff_r, grad=grad)
+
+@torch.jit.script
+def _se3_adjoint_lie_grad(Ts: torch.Tensor, grad: torch.Tensor) -> torch.Tensor:
+    """_summary_
+
+    Args:
+        Ts (torch.Tensor): (..., 7), (qw, qx, qy, qz, x, y, z)
+        grad (torch.Tensor): (..., 6), (rx, ry, rz, vx, vy, vz)
+
+    Returns:
+        adjoint_grad (torch.Tensor): (..., 6), (rx, ry, rz, vx, vy, vz)
+
+    Note:
+    L_v f(g_0 g x) = L_{[Ad_g0]v} f(g g_0 x)
+    => Grad_{g} f(g_0 g x) = Grad_{g} [Ad_g0]^{Transpose} f(g g_0 x)
+    Note that gradient takes the transpose of adjoint matrix!!
+    [Ad_T]^{Transpose} = [
+        [R^{-1},   -R^{-1} skew(p)],
+        [     0,        R^{-1}    ]
+    ]
+    """
+    assert Ts.shape[-1] == 7, f"{Ts.shape}"
+    assert grad.shape[-1] == 6, f"{grad.shape}"
+    assert Ts.shape[:1] == grad.shape[:1], f"{Ts.shape}, {grad.shape}"
+
+    qinv = transforms.quaternion_invert(Ts[..., :4]) # (..., 4)
+    adj_grad_R = grad[..., :3] + torch.cross(Ts[..., 4:], grad[..., 3:]) # (..., 3)
+    adj_grad_R = transforms.quaternion_apply(qinv, adj_grad_R) # (..., 3)
+    adj_grad_v = transforms.quaternion_apply(qinv, grad[..., 3:]) # (..., 3)
     
-def _optimize_pcd_collision_once(x: Union[PointCloud, torch.Tensor], y: Union[PointCloud, torch.Tensor], cutoff_r: float, dt: float, eps: float) -> Tuple[Union[PointCloud, torch.Tensor], SE3, bool]:
-    if isinstance(x, PointCloud):
-        x = x.points
-    if isinstance(y, PointCloud):
-        pcd = y
-        y = y.points
-    else:
-        pcd = None
+    adj_grad = torch.cat([adj_grad_R, adj_grad_v], dim=-1) # (..., 6)
 
-    energy, grad, n_edge = pcd_energy(x=x, y=y, cutoff_r=cutoff_r, grad=True)
+    return adj_grad
 
-    if n_edge == 0:
-        done = True
-    else:
-        done = False
 
-    disp = -grad / (grad.norm() + eps) * dt
-    disp_pose = F.pad(F.pad(disp, pad=(3,0), value=0.), pad=(1,0), value=1.) # (1,0,0,0,x,y,z)
-    disp_pose = SE3(disp_pose)
+@torch.jit.script
+def _optimize_pcd_collision_once(x: torch.Tensor, 
+                                 y: torch.Tensor, 
+                                 Ts: torch.Tensor,
+                                 dt: float, 
+                                 cutoff_r: float, 
+                                 max_num_neighbors: int = 100,
+                                 eps: float = 0.01,
+                                 cluster_method: str = 'knn'):
+    assert x.ndim == 2 and x.shape[-1] == 3, f"{x.shape}" # (nX, 3)
+    assert y.ndim == 3 and y.shape[-1] == 3, f"{y.shape}" # (nPose, nY, 3)
+    assert Ts.ndim == 2 and Ts.shape[-1] == 7, f"{Ts.shape}" # (nPose, 7)
+    assert len(Ts) == len(y), f"{Ts.shape}, {y.shape}"
+    n_poses, n_y_points = y.shape[:2]
 
-    if pcd is None:
-        return y + disp, disp_pose, done
-    else:
-        return pcd.transformed(disp_pose)[0], disp_pose, done
+    Ty = pcd_utils.transform_points(y, Ts, batched_pcd=True) # (nPose, nY, 3)
+    energy, grad = _pcd_energy(
+        x=x, 
+        y=Ty, 
+        cutoff_r=cutoff_r, 
+        eps = eps, 
+        max_num_neighbor=max_num_neighbors, 
+        cluster_method=cluster_method
+    ) # (nPose,), (nPose, 6)
+    assert isinstance(grad, torch.Tensor)
+    grad = _se3_adjoint_lie_grad(Ts, grad) # (nPose, 6)
+
+    # disp = -grad / (grad.norm() + eps) * dt
+    grad = grad * (cutoff_r**2)
+    disp = -grad * dt
+    disp_pose = se3._exp_map(disp) # (n_poses, 7)
+
+    new_pose = se3._multiply(Ts, disp_pose)
+
+    # done = torch.isclose(energy, torch.zeros_like(energy))
+
+    return new_pose, energy
     
 def optimize_pcd_collision(x: Union[PointCloud, torch.Tensor], y: Union[PointCloud, torch.Tensor], cutoff_r: float, dt: float, eps: float, iters: int, rel_pose: Optional[SE3] = None) -> Tuple[Union[PointCloud, torch.Tensor], SE3]:
     if rel_pose is not None:
