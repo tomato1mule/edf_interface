@@ -248,7 +248,8 @@ def optimize_pcd_collision_trajectory(x: Union[PointCloud, torch.Tensor],
     """
     x = convert_to_tensor(x)
     y = convert_to_tensor(y)
-    Ts = convert_to_tensor(Ts)
-    trajectories: torch.Tensor = _optimize_pcd_collision_trajectory(x=x, y=y, Ts=Ts, n_steps=n_steps, dt=dt, cutoff_r=cutoff_r, max_num_neighbors=max_num_neighbors, eps=eps, cluster_method=cluster_method)
+    trajectories: torch.Tensor = _optimize_pcd_collision_trajectory(x=x, y=y, Ts=convert_to_tensor(Ts), n_steps=n_steps, dt=dt, cutoff_r=cutoff_r, max_num_neighbors=max_num_neighbors, eps=eps, cluster_method=cluster_method)
+    if isinstance(Ts, torch.Tensor):
+        Ts = SE3(poses=Ts)
     trajectories: List[SE3] = [Ts.new(poses=traj) for traj in trajectories] # List of n_poses * (n_steps, 7) poses
     return trajectories
