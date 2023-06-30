@@ -92,8 +92,17 @@ def _pcd_energy(x: torch.Tensor,
     x = x[edge_x_idx]
     y = y[edge_y_idx]
     pose_idx = edge_y_idx // n_y_points
+    r = torch.norm(x-y, dim=-1, p=1)
 
-    energy = (cutoff_r/(torch.norm(x-y, dim=-1, p=1) + eps*cutoff_r)) # (n_edges)
+    cutoff = True
+    if cutoff and cluster_method == 'knn':
+        inrange_edge_mask = r<=cutoff_r
+        r = r[inrange_edge_mask]
+        pose_idx = pose_idx[inrange_edge_mask]
+    else:
+        inrange_edge_mask = None
+
+    energy = (cutoff_r/(r + eps*cutoff_r))   # (n_edges)
     energy = torch_scatter.scatter_sum(src = energy, index = pose_idx, dim=-1, dim_size=n_poses) # (n_pose)
 
     if compute_grad is True:
