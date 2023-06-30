@@ -105,7 +105,7 @@ def compute_post_place_trajectories(place_poses: data.SE3,
             reference_poses=post_place_poses.poses,
             n_steps=n_steps,
             extrapolate_factor=extrapolate_post_place,
-        )[..., -1 ,:]
+        )
     else:
         trajectories = _interpolate_trajectory(
             init_poses=place_poses.poses,
