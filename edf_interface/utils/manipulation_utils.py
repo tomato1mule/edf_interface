@@ -88,7 +88,17 @@ def compute_pre_place_trajectories(place_poses: data.SE3,
                                    max_num_neighbors: int = 100,
                                    eps: float = 0.01,
                                    cluster_method: str = 'knn') -> List[data.SE3]:
-    return optimize_pcd_collision_trajectory(x=scene_pcd, y=grasp_pcd, Ts=place_poses, n_steps=n_steps, dt=dt, cutoff_r=cutoff_r, max_num_neighbors=max_num_neighbors, eps=eps, cluster_method=cluster_method)
+    trajectories: List[data.SE3] = optimize_pcd_collision_trajectory(x=scene_pcd, 
+                                                                     y=grasp_pcd, 
+                                                                     Ts=place_poses, 
+                                                                     n_steps=n_steps, 
+                                                                     dt=dt, 
+                                                                     cutoff_r=cutoff_r, 
+                                                                     max_num_neighbors=max_num_neighbors, 
+                                                                     eps=eps, 
+                                                                     cluster_method=cluster_method,
+                                                                     revert_order = True)
+    return trajectories
 
 @beartype
 def compute_post_place_trajectories(place_poses: data.SE3, 

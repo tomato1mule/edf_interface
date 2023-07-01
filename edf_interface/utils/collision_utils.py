@@ -195,7 +195,8 @@ def _optimize_pcd_collision_trajectory(x: torch.Tensor,
                                        cutoff_r: float,
                                        max_num_neighbors: int = 100,
                                        eps: float = 0.01,
-                                       cluster_method: str = 'knn') -> torch.Tensor:
+                                       cluster_method: str = 'knn',
+                                       revert_order: bool = False) -> torch.Tensor:
     """_summary_
 
     Args:
@@ -226,6 +227,8 @@ def _optimize_pcd_collision_trajectory(x: torch.Tensor,
         trajectories.append(new_pose)
     trajectories = torch.stack(trajectories, dim=0) # (n_steps, n_poses, 7)
     trajectories = trajectories.movedim(0, -2) # (n_poses, n_steps, 7)
+    if revert_order:
+        trajectories = torch.flip(trajectories[...,::], dims=(-2,)) # (n_poses, n_steps, 7)
 
     return trajectories
 
@@ -238,7 +241,8 @@ def optimize_pcd_collision_trajectory(x: Union[PointCloud, torch.Tensor],
                                       cutoff_r: float,
                                       max_num_neighbors: int = 100,
                                       eps: float = 0.01,
-                                      cluster_method: str = 'knn') -> List[SE3]:
+                                      cluster_method: str = 'knn',
+                                      revert_order: bool = False) -> List[SE3]:
     """_summary_
 
     Args:
@@ -257,7 +261,7 @@ def optimize_pcd_collision_trajectory(x: Union[PointCloud, torch.Tensor],
     """
     x = convert_to_tensor(x)
     y = convert_to_tensor(y)
-    trajectories: torch.Tensor = _optimize_pcd_collision_trajectory(x=x, y=y, Ts=convert_to_tensor(Ts), n_steps=n_steps, dt=dt, cutoff_r=cutoff_r, max_num_neighbors=max_num_neighbors, eps=eps, cluster_method=cluster_method)
+    trajectories: torch.Tensor = _optimize_pcd_collision_trajectory(x=x, y=y, Ts=convert_to_tensor(Ts), n_steps=n_steps, dt=dt, cutoff_r=cutoff_r, max_num_neighbors=max_num_neighbors, eps=eps, cluster_method=cluster_method, revert_order=revert_order) # (..., nTime, 7)
     if isinstance(Ts, torch.Tensor):
         Ts = SE3(poses=Ts)
     trajectories: List[SE3] = [Ts.new(poses=traj) for traj in trajectories] # List of n_poses * (n_steps, 7) poses
