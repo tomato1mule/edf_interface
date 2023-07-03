@@ -172,17 +172,26 @@ def _optimize_pcd_collision_once(x: torch.Tensor,
         max_num_neighbor=max_num_neighbors, 
         cluster_method=cluster_method
     ) # (nPose,), (nPose, 6)
+    # done = torch.isclose(energy, torch.zeros_like(energy))
     assert isinstance(grad, torch.Tensor)
     grad = _se3_adjoint_lie_grad(Ts, grad) # (nPose, 6)
 
     # disp = -grad / (grad.norm() + eps) * dt
     grad = grad * (torch.tensor([1., 1., 1., cutoff_r, cutoff_r, cutoff_r], device=grad.device, dtype=grad.dtype))
     disp = -grad * dt * cutoff_r
-    disp_pose = se3._exp_map(disp) # (n_poses, 7)
 
+    # -------------------------------------------------------------------------------------------------- #
+    # If gradient is not detached due to torch.jit bug, use with torch.no_grad() context.
+    # -------------------------------------------------------------------------------------------------- #
+    disp_pose = se3._exp_map(disp) # (n_poses, 7)
     new_pose = se3._multiply(Ts, disp_pose)
 
-    # done = torch.isclose(energy, torch.zeros_like(energy))
+    # If gradient is not detached due to torch.jit bug, use the following instead.
+    # with torch.no_grad():
+    #     disp_pose = se3._exp_map(disp) # (n_poses, 7)
+    #     new_pose = se3._multiply(Ts, disp_pose)
+    
+    # -------------------------------------------------------------------------------------------------- #
 
     return new_pose, energy
 
