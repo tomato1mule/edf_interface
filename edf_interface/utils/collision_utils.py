@@ -183,13 +183,14 @@ def _optimize_pcd_collision_once(x: torch.Tensor,
     # -------------------------------------------------------------------------------------------------- #
     # If gradient is not detached due to torch.jit bug, use with torch.no_grad() context.
     # -------------------------------------------------------------------------------------------------- #
-    disp_pose = se3._exp_map(disp) # (n_poses, 7)
-    new_pose = se3._multiply(Ts, disp_pose)
+
+    # disp_pose = se3._exp_map(disp) # (n_poses, 7)
+    # new_pose = se3._multiply(Ts, disp_pose)
 
     # If gradient is not detached due to torch.jit bug, use the following instead.
-    # with torch.no_grad():
-    #     disp_pose = se3._exp_map(disp) # (n_poses, 7)
-    #     new_pose = se3._multiply(Ts, disp_pose)
+    with torch.no_grad():
+        disp_pose = se3._exp_map(disp) # (n_poses, 7)
+        new_pose = se3._multiply(Ts, disp_pose)
     
     # -------------------------------------------------------------------------------------------------- #
 
