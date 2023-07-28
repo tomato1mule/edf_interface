@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 import torch_cluster
 import torch_scatter
-from edf_interface.data import transforms, se3, pcd_utils, PointCloud, SE3
+from edf_interface.data import transforms, se3, pcd_utils, PointCloud, SE3, preprocess
 
 def convert_to_tensor(x: Union[PointCloud, SE3, torch.Tensor]) -> torch.Tensor:
     if isinstance(x, PointCloud):
@@ -252,7 +252,9 @@ def optimize_pcd_collision_trajectory(x: Union[PointCloud, torch.Tensor],
                                       max_num_neighbors: int = 100,
                                       eps: float = 0.01,
                                       cluster_method: str = 'knn',
-                                      revert_order: bool = False) -> List[SE3]:
+                                      revert_order: bool = False,
+                                      voxel_size: Optional[float] = None,
+                                      voxel_coord_reduction: Optional[str] = None) -> List[SE3]:
     """_summary_
 
     Args:
@@ -269,6 +271,12 @@ def optimize_pcd_collision_trajectory(x: Union[PointCloud, torch.Tensor],
     Returns:
         trajectories: _description_
     """
+    if voxel_size is not None:
+        if voxel_coord_reduction is None:
+            voxel_coord_reduction = 'average'
+        x = preprocess.downsample(x, voxel_size=voxel_size, coord_reduction=voxel_coord_reduction)
+        y = preprocess.downsample(y, voxel_size=voxel_size, coord_reduction=voxel_coord_reduction)
+
     x = convert_to_tensor(x)
     y = convert_to_tensor(y)
     trajectories: torch.Tensor = _optimize_pcd_collision_trajectory(x=x, y=y, Ts=convert_to_tensor(Ts), n_steps=n_steps, dt=dt, cutoff_r=cutoff_r, max_num_neighbors=max_num_neighbors, eps=eps, cluster_method=cluster_method, revert_order=revert_order) # (..., nTime, 7)
