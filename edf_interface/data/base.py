@@ -43,7 +43,7 @@ def _torch_tensor_to(__tensor: torch.Tensor,
     
     return __tensor.to(device=device, dtype=dtype, non_blocking=non_blocking, copy=copy)
 
-@beartype
+#@beartype
 class DataAbstractBase(metaclass=ABCMeta):
     @property
     @abstractmethod
@@ -331,7 +331,7 @@ class DataAbstractBase(metaclass=ABCMeta):
 
 
 
-@beartype
+#@beartype
 class DataListAbstract(DataAbstractBase):
     metadata_args: List[str]
     data_seq: List[DataAbstractBase]
