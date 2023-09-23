@@ -58,18 +58,21 @@ class TargetPoseDemo(Demo):
         self.target_poses: SE3 = target_poses
         self.grasp_pcd: PointCloud = grasp_pcd
 
-    def plotly(self, point_size=3.0, width=800, height=800, ranges=None):
-        _, fig_pose = visualize_pose(
+    def plotly(self, point_size=3.0, width=800, height=800, ranges=None, bg_color = None):
+        _, fig = visualize_pose(
             scene_pcd=self.scene_pcd,
             grasp_pcd=self.grasp_pcd,
             poses=self.target_poses,
             point_size=point_size, width=width, height=height,
             ranges=ranges
         )
-        return fig_pose
+        if bg_color is not None:
+            from .visualize import update_background_color
+            fig = update_background_color(fig, color=bg_color)
+        return fig
     
-    def show(self, point_size=3.0, width=800, height=800, ranges=None):
-        self.plotly(point_size=point_size, width=width, height=height, ranges=ranges).show()
+    def show(self, point_size=3.0, width=800, height=800, ranges=None, bg_color = None):
+        return self.plotly(point_size=point_size, width=width, height=height, ranges=ranges, bg_color=bg_color)
 
 @beartype
 class DemoSequence(DataListAbstract, Demo):

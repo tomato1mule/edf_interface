@@ -209,7 +209,8 @@ class PointCloud(Observation):
                  colors: Optional[Iterable] = None, 
                  custom_data: Optional[Dict] = None,
                  width = 600,
-                 height = 600
+                 height = 600,
+                 bg_color = None
                  ) -> go.Figure:
         data = PointCloud.points_to_plotly(pcd=pcd, point_size=point_size, name=name, opacity=opacity, colors=colors, custom_data=custom_data)
 
@@ -233,6 +234,9 @@ class PointCloud(Observation):
                 zaxis=dict(range=[zc-w, zc+w])
             )
         ))
+        if bg_color is not None:
+            from .visualize import update_background_color
+            fig = update_background_color(fig, color=bg_color)
         return fig
     
     def show(self, 
@@ -242,8 +246,9 @@ class PointCloud(Observation):
              colors: Optional[torch.Tensor] = None, 
              custom_data: Optional[dict] = None, 
              width = 600, 
-             height = 600):
-        return PointCloud.show_pcd(pcd=self, point_size=point_size, name=name, opacity=opacity, colors=colors, custom_data=custom_data, width=width, height=height)
+             height = 600,
+             bg_color = None):
+        return PointCloud.show_pcd(pcd=self, point_size=point_size, name=name, opacity=opacity, colors=colors, custom_data=custom_data, width=width, height=height, bg_color=bg_color)
     
 
 

@@ -111,3 +111,36 @@ def visualize_pose(scene_pcd: PointCloud,
     fig_sample.data[trace_dict[f'pose_0']].visible = True
 
     return fig_grasp, fig_sample
+
+def update_background_color(fig, color):
+    color_str = 'rgba('
+    for val in color[:3]:
+        color_str += f"{val}, "
+    if len(color) == 3:
+        color_str += "1"
+    elif len(color) == 4:
+        color_str += f"{val}"
+    color_str += ')'
+    
+    fig.update_layout(
+        plot_bgcolor=color_str,
+        paper_bgcolor=color_str,
+        scene=dict(
+            xaxis = dict(
+                    backgroundcolor=color_str,
+                    gridcolor="white",
+                    showbackground=True,
+                    zerolinecolor="white",),
+            yaxis = dict(
+                backgroundcolor=color_str,
+                gridcolor="white",
+                showbackground=True,
+                zerolinecolor="white"),
+            zaxis = dict(
+                backgroundcolor=color_str,
+                gridcolor="white",
+                showbackground=True,
+                zerolinecolor="white",),
+        )
+    )
+    return fig
