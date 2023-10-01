@@ -52,7 +52,7 @@ class PyroServer():
                 self.log.debug(f"{self.server_name}: Looking for a nameserver...")
             else:
                 self.log.warning(f"{self.server_name}: Looking for a nameserver...")
-            self.nameserver_proxy = look_for_nameserver(wait=True, timeout=nameserver_timeout) # find nameserver
+            self.nameserver_proxy = look_for_nameserver(wait=True, timeout=nameserver_timeout, host=nameserver_host, port=nameserver_port) # find nameserver
             if init_nameserver:
                 self.log.debug(f"{self.server_name}: Nameserver found!")
             else:

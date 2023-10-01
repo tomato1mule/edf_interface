@@ -14,7 +14,12 @@ PYRO_PROXY = Pyro5.api.Proxy
 @beartype
 def look_for_nameserver(wait: bool = True,
                         timeout: Union[float, int] = -1, # infty if negative
+                        host: Optional[str] = None,
+                        port: Optional[int] = None,
                         ) -> Pyro5.client.Proxy:
+    if not host:
+        host = ""
+    
     if timeout > 0: 
         assert wait is True, f"wait must be True if timeout is set."
         use_timeout = True
@@ -29,7 +34,7 @@ def look_for_nameserver(wait: bool = True,
                 raise TimeoutError(f"Cannot find nameserver in {time_spent} seconds.")
             
         try:
-            proxy = Pyro5.api.locate_ns()    
+            proxy = Pyro5.api.locate_ns(host=host, port=port)    
         except Pyro5.errors.NamingError as e:
             if wait:
                 continue
