@@ -32,6 +32,8 @@ class PyroServer():
         self.service = None
         self.server_name = server_name
         self.log = logging.getLogger(self.server_name)
+        self.nameserver_host = nameserver_host
+        self.nameserver_port = nameserver_port
         
         ############ Initialize Nameserver Proxy #############
         if init_nameserver:
@@ -81,7 +83,11 @@ class PyroServer():
         if self.service is None:
             raise ServiceNotRegisteredException(f"Service not registered! Call PyroServer.register_service(...) before running the server.")
         ############ Initialize Server #############
-        self.server_daemon = Pyro5.server.Daemon()                           # make a Pyro daemon
+        if self.nameserver_host:
+            self.server_daemon = Pyro5.server.Daemon(host=self.nameserver_host, port=self.nameserver_port + 1 if self.nameserver_port is not None else 9091)                       # make a Pyro daemon
+        else:
+            self.server_daemon = Pyro5.server.Daemon() 
+            
         self.uri = self.server_daemon.register(self.service)                 # register the greeting maker as a Pyro object
         self.nameserver_proxy.register(self.server_name, self.uri)           # register the object with a name in the name server
         ######################################################
