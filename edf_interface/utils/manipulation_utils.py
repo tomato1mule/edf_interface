@@ -134,3 +134,28 @@ def compute_post_place_trajectories(place_poses: data.SE3,
     return [place_poses.new(
         poses = traj if include_target_pose else traj[1:]
     ) for traj in trajectories]
+    
+    
+def get_inlier_idx_median(x, interval: Union[float, int] = 1.0):
+    x=x.detach().cpu()
+    std = x.std() * interval
+    inlier = (x >= x.median() - std) * (x <= x.median() + std)
+    inlier = inlier.nonzero().squeeze(-1)
+    return [int(i) for i in inlier.cpu().numpy()]
+
+def get_inlier_idx_mean(x, interval: Union[float, int] = 1.0):
+    x=x.detach().cpu()
+    std = x.std() * interval
+    inlier = (x >= x.mean() - std) * (x <= x.mean() + std)
+    inlier = inlier.nonzero().squeeze(-1)
+    return [int(i) for i in inlier.cpu().numpy()]
+
+def remove_outliers(xs, critic, interval: Union[float, int] = 1.0):
+    inliers_idx = get_inlier_idx_median(x=critic, interval=interval * 1.5)
+    xs = [xs[i] for i in inliers_idx]
+    critic = torch.stack([critic[i] for i in inliers_idx], dim=0)
+    
+    inliers_idx = get_inlier_idx_mean(x=critic, interval=interval)
+    inliers = [xs[i] for i in inliers_idx]
+    critic_inliers = torch.stack([critic[i] for i in inliers_idx], dim=0)
+    return inliers, critic_inliers
