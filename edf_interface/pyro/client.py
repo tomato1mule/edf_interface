@@ -6,20 +6,32 @@ import Pyro5.errors
 import inspect
 import functools
 
-from edf_interface.pyro.utils import get_service_proxy, PYRO_PROXY, _wrap_pyro_remote
+import Pyro5.api
+from edf_interface.pyro.utils import get_service_proxy, PYRO_PROXY, _wrap_pyro_remote, look_for_nameserver
 
 @beartype
 class PyroClientBase():
     services: List[PYRO_PROXY] = []
     log: logging.Logger
 
-    def __init__(self, service_names: Union[Iterable[str], str], timeout: Optional[Union[int, float]] = None):
+    def __init__(self, service_names: Union[Iterable[str], str], timeout: Optional[Union[int, float]] = None,
+                 nameserver_host: Optional[str] = None, nameserver_port: Optional[int] = None):
         self.log = logging.getLogger("PyroClientBase")
         if isinstance(service_names, str):
             service_names = [service_names]
             
+        if nameserver_host or nameserver_port:
+            self.ns = look_for_nameserver(
+                host=nameserver_host, port=nameserver_port
+            )
+        else:
+            self.ns = None
+            
         for name in service_names:
-            service = get_service_proxy(name)
+            if self.ns is not None:
+                service = Pyro5.api.Proxy(self.ns.lookup(name))
+            else:
+                service = get_service_proxy(name)
             self._register_remote_methods(service, timeout, _service_name_debug=name)
             self.services.append(service)
             
