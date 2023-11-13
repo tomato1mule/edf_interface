@@ -1,5 +1,6 @@
 from typing import Union, Optional, List, Tuple, Dict, Any, Callable, Sequence
 from functools import partial
+import random
 
 from beartype import beartype
 import torch
@@ -173,6 +174,156 @@ def crop_bbox(data: Union[DataAbstractBase, Any], bbox: Union[torch.Tensor, List
             raise PreprocessDataTypeException(f"Unsupported data type: {type(data)}")
         else:
             raise PreprocessNonDataException(f"Unsupported primitive type: {type(data)}")
+        
+        
+
+@beartype
+@recursive_apply
+def color_jitter(data: Union[DataAbstractBase, Any], std: float, prob: float = 1.0) -> DataAbstractBase:
+    if type(data) == PointCloud:
+        if data.is_empty or prob < random.random():
+            return data
+        else:
+            colors = data.colors + torch.rand_like(data.colors)*std
+            return data.new(colors=colors)
+    else:
+        if isinstance(data, DataAbstractBase):
+            raise PreprocessDataTypeException(f"Unsupported data type: {type(data)}")
+        else:
+            raise PreprocessNonDataException(f"Unsupported primitive type: {type(data)}")
+        
+        
+@beartype
+@recursive_apply
+def pos_jitter(data: Union[DataAbstractBase, Any], std: float, prob: float = 1.0) -> DataAbstractBase:
+    if type(data) == PointCloud:
+        if data.is_empty or prob < random.random():
+            return data
+        else:
+            points = data.points + torch.rand_like(data.points)*std
+            return data.new(points=points)
+    else:
+        if isinstance(data, DataAbstractBase):
+            raise PreprocessDataTypeException(f"Unsupported data type: {type(data)}")
+        else:
+            raise PreprocessNonDataException(f"Unsupported primitive type: {type(data)}")
+
+
+
+
+def _rgb_to_hsl(rgb):
+    """
+    Convert an RGB image to HSL.
+    :param rgb: A PyTorch tensor of shape (N, 3) representing RGB values.
+    :return: A PyTorch tensor of shape (N, 3) representing HSL values.
+    """
+    # Normalize RGB values to the range 0-1
+    rgb = rgb.float()
+
+    # Calculate min and max values for each pixel
+    min_val, _ = torch.min(rgb, dim=1)
+    max_val, _ = torch.max(rgb, dim=1)
+
+    # Calculate Luminance
+    l = (max_val + min_val) / 2
+
+    # Initialize Saturation and Hue
+    s = torch.zeros_like(l)
+    h = torch.zeros_like(l)
+
+    # Calculate Saturation
+    delta = max_val - min_val
+    non_zero_delta = delta != 0
+
+    # Saturation for non-zero delta
+    s[non_zero_delta] = delta[non_zero_delta] / (1 - torch.abs(2 * l[non_zero_delta] - 1))
+
+    # Calculate Hue
+    # Red is max
+    red_max = (max_val == rgb[:, 0]) & non_zero_delta
+    h[red_max] = ((rgb[red_max, 1] - rgb[red_max, 2]) / delta[red_max]) % 6
+
+    # Green is max
+    green_max = (max_val == rgb[:, 1]) & non_zero_delta
+    h[green_max] = ((rgb[green_max, 2] - rgb[green_max, 0]) / delta[green_max]) + 2
+
+    # Blue is max
+    blue_max = (max_val == rgb[:, 2]) & non_zero_delta
+    h[blue_max] = ((rgb[blue_max, 0] - rgb[blue_max, 1]) / delta[blue_max]) + 4
+
+    # Normalize Hue to range [0, 1]
+    h = h / 6
+
+    return torch.stack([h, s, l], dim=1)
+
+
+def _hsl_to_rgb(hsl):
+    """
+    Convert an HSL image to RGB.
+    :param hsl: A PyTorch tensor of shape (N, 3) representing HSL values.
+    :return: A PyTorch tensor of shape (N, 3) representing RGB values.
+    """
+
+    def hue_to_rgb(p, q, t):
+        t = torch.where(t < 0, t + 1, t)
+        t = torch.where(t > 1, t - 1, t)
+        return torch.where(t < 1/6, p + (q - p) * 6 * t,
+               torch.where(t < 1/2, q,
+               torch.where(t < 2/3, p + (q - p) * (2/3 - t) * 6, p)))
+
+    h, s, l = hsl[:, 0], hsl[:, 1], hsl[:, 2]
+
+    q = torch.where(l < 0.5, l * (1 + s), l + s - l * s)
+    p = 2 * l - q
+
+    r = hue_to_rgb(p, q, h + 1/3)
+    g = hue_to_rgb(p, q, h)
+    b = hue_to_rgb(p, q, h - 1/3)
+
+    return torch.stack([r, g, b], dim=1)
+
+
+
+@beartype
+@recursive_apply
+def randomize_hsl(data: Union[DataAbstractBase, Any], hrange: float, srange: float, lrange: float, prob: float = 1.0) -> DataAbstractBase:
+    if type(data) == PointCloud:
+        if data.is_empty or prob < random.random():
+            return data
+        else:
+            assert data.colors.ndim == 2 and data.colors.shape[-1] == 3, f"{data.colors.shape}" # (N,3)
+            hsl = _rgb_to_hsl(data.colors)
+            assert hsl.ndim == 2 and hsl.shape[-1] == 3, f"{hsl.shape}" # (N,3)
+            hsl = hsl + ((torch.rand_like(hsl[0,:])-0.5) * torch.tensor([hrange, srange, lrange], device=hsl.device, dtype=hsl.dtype))
+            hsl = torch.clip(hsl, min=torch.tensor([-100., 0., 0.], device=hsl.device, dtype=hsl.dtype), max=torch.tensor([100., 1., 1.], device=hsl.device, dtype=hsl.dtype))
+            colors = _hsl_to_rgb(hsl)
+            return data.new(colors=colors)
+    else:
+        if isinstance(data, DataAbstractBase):
+            raise PreprocessDataTypeException(f"Unsupported data type: {type(data)}")
+        else:
+            raise PreprocessNonDataException(f"Unsupported primitive type: {type(data)}")
+        
+        
+@beartype
+@recursive_apply
+def clip_color(data: Union[DataAbstractBase, Any]) -> DataAbstractBase:
+    if type(data) == PointCloud:
+        if data.is_empty:
+            return data
+        else:
+            assert data.colors.ndim == 2 and data.colors.shape[-1] == 3, f"{data.colors.shape}" # (N,3)
+            return data.new(
+                colors = torch.clip(data.colors, min=torch.tensor([0.], device=data.colors.device, dtype=data.colors.dtype), max=torch.tensor([1.], device=data.colors.device, dtype=data.colors.dtype))
+            )
+    else:
+        if isinstance(data, DataAbstractBase):
+            raise PreprocessDataTypeException(f"Unsupported data type: {type(data)}")
+        else:
+            raise PreprocessNonDataException(f"Unsupported primitive type: {type(data)}")
+        
+        
+        
 
 
 # def normalize_color(data, color_mean: torch.Tensor, color_std: torch.Tensor):
