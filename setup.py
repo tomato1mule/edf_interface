@@ -21,7 +21,6 @@ setup(
         "Operating System :: Ubuntu 22.04",
     ],
     packages=['edf_interface'],
-    python_requires="<3.9",
     install_requires=[
         'beartype',
         'Pyro5==5.14',
