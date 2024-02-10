@@ -21,6 +21,25 @@ from .base import DataAbstractBase, Action, Observation
 from .se3 import SE3
 
 
+@torch.jit.script
+def _compute_inrange_mask(points: torch.Tensor, bbox: torch.Tensor) -> torch.Tensor:
+    assert points.ndim == 2 and points.shape[-1] == 3, f"{points.shape}"
+    assert bbox.shape == (3,2), f"{bbox.shape}"
+
+    # Unpack the bounding box
+    xmin, xmax = bbox[0,0], bbox[0,1]
+    ymin, ymax = bbox[1,0], bbox[1,1]
+    zmin, zmax = bbox[2,0], bbox[2,1]
+
+    # Create masks for each dimension
+    mask_x = (points[:, 0] >= xmin) & (points[:, 0] <= xmax)
+    mask_y = (points[:, 1] >= ymin) & (points[:, 1] <= ymax)
+    mask_z = (points[:, 2] >= zmin) & (points[:, 2] <= zmax)
+
+    # Combine masks
+    mask = mask_x & mask_y & mask_z
+    return mask
+
 @beartype
 class PointCloud(Observation):
     data_args_type: Dict[str, type] = {
@@ -250,6 +269,20 @@ class PointCloud(Observation):
              bg_color = None):
         return PointCloud.show_pcd(pcd=self, point_size=point_size, name=name, opacity=opacity, colors=colors, custom_data=custom_data, width=width, height=height, bg_color=bg_color)
     
+    @staticmethod
+    def crop_pcd(data: PointCloud, bbox: Union[torch.Tensor, List, Tuple, np.ndarray]):
+        if data.is_empty:
+            return data           
+        points, colors = data.points, data.colors
+
+        bbox = torch.tensor(bbox, dtype=points.dtype, device=points.device)
+        assert bbox.shape == (3,2), f"{bbox.shape}"
+        in_range_mask = _compute_inrange_mask(points=points, bbox=bbox)
+
+        return data.new(points=points[in_range_mask], colors=colors[in_range_mask])
+    
+    def crop(self, bbox: Union[torch.Tensor, List, Tuple, np.ndarray]):
+        return self.crop_pcd(data=self, bbox=bbox)
 
 
         
